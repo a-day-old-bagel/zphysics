@@ -2626,6 +2626,18 @@ JPC_BodyInterface_SetObjectLayer(JPC_BodyInterface *in_iface, JPC_BodyID in_body
     toJph(in_iface)->SetObjectLayer(toJph(in_body_id), static_cast<JPH::ObjectLayer>(in_layer));
 }
 //--------------------------------------------------------------------------------------------------
+JPC_API uint64_t
+JPC_BodyInterface_GetUserData(const JPC_BodyInterface *in_iface, JPC_BodyID in_body_id)
+{
+    return toJph(in_iface)->GetUserData(toJph(in_body_id));
+}
+//--------------------------------------------------------------------------------------------------
+JPC_API void
+JPC_BodyInterface_SetUserData(JPC_BodyInterface *in_iface, JPC_BodyID in_body_id, uint64_t in_data)
+{
+    toJph(in_iface)->SetUserData(toJph(in_body_id), in_data);
+}
+//--------------------------------------------------------------------------------------------------
 //
 // JPC_Body
 //
@@ -3468,5 +3480,23 @@ JPC_API void
 JPC_CharacterVirtual_SetLinearVelocity(JPC_CharacterVirtual *in_character, const float in_linear_velocity[3])
 {
     toJph(in_character)->SetLinearVelocity(loadVec3(in_linear_velocity));
+}
+//--------------------------------------------------------------------------------------------------
+JPC_API uint64_t
+JPC_CharacterVirtual_GetUserData(const JPC_CharacterVirtual *in_character)
+{
+    return toJph(in_character)->GetUserData();
+}
+//--------------------------------------------------------------------------------------------------
+JPC_API void
+JPC_CharacterVirtual_SetUserData(JPC_CharacterVirtual *in_character, uint64_t in_data)
+{
+    toJph(in_character)->SetUserData(in_data);
+}
+//--------------------------------------------------------------------------------------------------
+JPC_API JPC_BodyID
+JPC_CharacterVirtual_GetInnerBodyID(const JPC_CharacterVirtual *in_character)
+{
+    return (JPC_BodyID){ toJph(in_character)->GetInnerBodyID().GetIndexAndSequenceNumber() };
 }
 //--------------------------------------------------------------------------------------------------

@@ -54,6 +54,16 @@ pub const SubShapeId = enum(SubShapeIdInt) {
     }
 };
 
+const CharacterIdInt = std.meta.fieldInfo(c.JPC_CharacterID, .id).type;
+pub const CharacterId = enum(CharacterIdInt) {
+    invalid = c.JPC_CHARACTER_ID_INVALID,
+    _,
+
+    pub inline fn toJpc(self: CharacterId) c.JPC_CharacterID {
+        return .{ .id = @intFromEnum(self) };
+    }
+};
+
 pub const max_physics_jobs = c.JPC_MAX_PHYSICS_JOBS;
 pub const max_physics_barriers = c.JPC_MAX_PHYSICS_BARRIERS;
 
@@ -912,6 +922,7 @@ pub const CharacterVirtualSettings = extern struct {
     }
 
     base: CharacterBaseSettings,
+    id: CharacterId,
     mass: f32,
     max_strength: f32,
     shape_offset: [4]f32 align(16), // 4th element is ignored
@@ -926,6 +937,7 @@ pub const CharacterVirtualSettings = extern struct {
     hit_reduction_cos_max_angle: f32,
     penetration_recovery_speed: f32,
     inner_body_shape: ?*Shape,
+    inner_body_id_override: BodyId,
     inner_body_layer: ObjectLayer,
 
     comptime {
@@ -1965,6 +1977,14 @@ pub const BodyInterface = opaque {
             in_layer,
         );
     }
+
+    pub fn getUserData(body_iface: *const BodyInterface, body_id: BodyId) u64 {
+        return c.JPC_BodyInterface_GetUserData(@ptrCast(body_iface), body_id.toJpc());
+    }
+
+    pub fn setUserData(body_iface: *BodyInterface, body_id: BodyId, data: u64) void {
+        c.JPC_BodyInterface_SetUserData(@ptrCast(body_iface), body_id.toJpc(), data);
+    }
 };
 //--------------------------------------------------------------------------------------------------
 //
@@ -2504,6 +2524,17 @@ pub const CharacterVirtual = opaque {
     }
     pub fn setLinearVelocity(character: *CharacterVirtual, velocity: [3]f32) void {
         c.JPC_CharacterVirtual_SetLinearVelocity(@as(*c.JPC_CharacterVirtual, @ptrCast(character)), &velocity);
+    }
+
+    pub fn getUserData(character: *const CharacterVirtual) u64 {
+        return c.JPC_CharacterVirtual_GetUserData(@as(*const c.JPC_CharacterVirtual, @ptrCast(character)));
+    }
+    pub fn setUserData(character: *CharacterVirtual, data: u64) void {
+        c.JPC_CharacterVirtual_SetUserData(@as(*c.JPC_CharacterVirtual, @ptrCast(character)), data);
+    }
+
+    pub fn getInnerBodyId(character: *const CharacterVirtual) BodyId {
+        return @enumFromInt(c.JPC_CharacterVirtual_GetInnerBodyID(@as(*const c.JPC_CharacterVirtual, @ptrCast(character))).id);
     }
 };
 //--------------------------------------------------------------------------------------------------

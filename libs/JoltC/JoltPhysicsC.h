@@ -66,6 +66,8 @@ typedef float JPC_Real;
 
 #define JPC_SUB_SHAPE_ID_EMPTY 0xffffffff
 
+#define JPC_CHARACTER_ID_INVALID 0xffffffff
+
 #define JPC_FLT_EPSILON FLT_EPSILON
 
 #ifdef __cplusplus
@@ -302,6 +304,11 @@ typedef struct JPC_SubShapeID
     uint32_t id;
 } JPC_SubShapeID;
 
+typedef struct JPC_CharacterID
+{
+    uint32_t id;
+} JPC_CharacterID;
+
 #define JPC_ID_EQ(a, b) (a.id == b.id)
 
 // TODO: Consider using structures for IDs
@@ -522,6 +529,7 @@ typedef struct JPC_CharacterSettings
 typedef struct JPC_CharacterVirtualSettings
 {
     JPC_CharacterBaseSettings base;
+    JPC_CharacterID     id;
     float               mass;
     float               max_strength;
     alignas(16) float   shape_offset[4];
@@ -536,6 +544,7 @@ typedef struct JPC_CharacterVirtualSettings
     float               hit_reduction_cos_max_angle;
     float               penetration_recovery_speed;
     const JPC_Shape *   inner_body_shape;
+    JPC_BodyID          inner_body_id_override;
     JPC_ObjectLayer     inner_body_layer;
 } JPC_CharacterVirtualSettings;
 
@@ -2161,6 +2170,12 @@ JPC_BodyInterface_GetObjectLayer(JPC_BodyInterface *in_iface, JPC_BodyID in_body
 
 JPC_API void
 JPC_BodyInterface_SetObjectLayer(JPC_BodyInterface *in_iface, JPC_BodyID in_body_id, JPC_ObjectLayer in_layer);
+
+JPC_API uint64_t
+JPC_BodyInterface_GetUserData(const JPC_BodyInterface *in_iface, JPC_BodyID in_body_id);
+
+JPC_API void
+JPC_BodyInterface_SetUserData(JPC_BodyInterface *in_iface, JPC_BodyID in_body_id, uint64_t in_data);
 //--------------------------------------------------------------------------------------------------
 //
 // JPC_Body
@@ -2467,6 +2482,15 @@ JPC_CharacterVirtual_GetLinearVelocity(const JPC_CharacterVirtual *in_character,
 
 JPC_API void
 JPC_CharacterVirtual_SetLinearVelocity(JPC_CharacterVirtual *in_character, const float in_linear_velocity[3]);
+
+JPC_API uint64_t
+JPC_CharacterVirtual_GetUserData(const JPC_CharacterVirtual *in_character);
+
+JPC_API void
+JPC_CharacterVirtual_SetUserData(JPC_CharacterVirtual *in_character, uint64_t in_data);
+
+JPC_API JPC_BodyID
+JPC_CharacterVirtual_GetInnerBodyID(const JPC_CharacterVirtual *in_character);
 //--------------------------------------------------------------------------------------------------
 #ifdef __cplusplus
 }
