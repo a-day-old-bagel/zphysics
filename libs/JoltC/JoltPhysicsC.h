@@ -1443,6 +1443,11 @@ JPC_PhysicsSystem_GetActiveBodyIDs(const JPC_PhysicsSystem *in_physics_system,
 JPC_API JPC_Body **
 JPC_PhysicsSystem_GetBodiesUnsafe(JPC_PhysicsSystem *in_physics_system);
 
+JPC_API bool
+JPC_PhysicsSystem_WereBodiesInContact(const JPC_PhysicsSystem *in_physics_system,
+                                      JPC_BodyID in_body_1,
+                                      JPC_BodyID in_body_2);
+
 #if JPC_DEBUG_RENDERER == 1
 JPC_API void
 JPC_PhysicsSystem_DrawBodies(JPC_PhysicsSystem *in_physics_system,

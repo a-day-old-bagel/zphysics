@@ -1557,6 +1557,14 @@ pub const PhysicsSystem = opaque {
         const ptr = c.JPC_PhysicsSystem_GetBodiesUnsafe(@as(*c.JPC_PhysicsSystem, @ptrCast(physics_system)));
         return @as([*]const *Body, @ptrCast(ptr))[0..physics_system.getNumBodies()];
     }
+
+    pub fn wereBodiesInContact(physics_system: *const PhysicsSystem, body_1: BodyId, body_2: BodyId) bool {
+        return c.JPC_PhysicsSystem_WereBodiesInContact(
+            @as(*const c.JPC_PhysicsSystem, @ptrCast(physics_system)),
+            body_1.toJpc(),
+            body_2.toJpc(),
+        );
+    }
 };
 //--------------------------------------------------------------------------------------------------
 //

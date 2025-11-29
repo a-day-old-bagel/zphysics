@@ -1198,6 +1198,14 @@ JPC_PhysicsSystem_GetNarrowPhaseQueryNoLock(const JPC_PhysicsSystem *in_physics_
     return toJpc(&toJph(in_physics_system)->GetNarrowPhaseQueryNoLock());
 }
 //--------------------------------------------------------------------------------------------------
+JPC_API bool
+JPC_PhysicsSystem_WereBodiesInContact(const JPC_PhysicsSystem *in_physics_system,
+                                      JPC_BodyID in_body_1,
+                                      JPC_BodyID in_body_2)
+{
+    return toJph(in_physics_system)->WereBodiesInContact(toJph(in_body_1), toJph(in_body_2));
+}
+//--------------------------------------------------------------------------------------------------
 //
 // JPC_BodyLockInterface
 //
