@@ -2245,6 +2245,11 @@ pub const Body = extern struct {
         return @as(*const Shape, @ptrCast(c.JPC_Body_GetShape(@as(*const c.JPC_Body, @ptrCast(body)))));
     }
 
+    pub fn getTransformedShape(body: *const Body) TransformedShape {
+        const c_result = c.JPC_Body_GetTransformedShape(@as(*const c.JPC_Body, @ptrCast(body)));
+        return @as(*TransformedShape, @constCast(@ptrCast(&c_result))).*;
+    }
+
     pub fn getPosition(body: *const Body) [3]Real {
         var position: [3]Real = undefined;
         c.JPC_Body_GetPosition(@as(*const c.JPC_Body, @ptrCast(body)), &position);
@@ -3574,6 +3579,31 @@ pub const ConvexHullShape = opaque {
         );
     }
 };
+
+//--------------------------------------------------------------------------------------------------
+//
+// TransformedShape
+//
+//--------------------------------------------------------------------------------------------------
+pub const TransformedShape = extern struct {
+    shape_position_com: [4]Real align(rvec_align), // 4th element is ignored
+    shape_rotation: [4]f32 align(16),
+    shape: *const Shape,
+    shape_scale: [3]f32,
+    body_id: BodyId,
+    sub_shape_id_creator: SubShapeIDCreator,
+
+    pub fn collidePointAny(self: *const TransformedShape, point: [3]Real) bool {
+        return c.JPC_TransformedShape_CollidePointAny(@as(*const c.JPC_TransformedShape, @ptrCast(self)), &point);
+    }
+
+    comptime {
+        assert(@sizeOf(TransformedShape) == @sizeOf(c.JPC_TransformedShape));
+        assert(@offsetOf(TransformedShape, "body_id") == @offsetOf(c.JPC_TransformedShape, "body_id"));
+        assert(@offsetOf(TransformedShape, "shape") == @offsetOf(c.JPC_TransformedShape, "shape"));
+    }
+};
+
 //--------------------------------------------------------------------------------------------------
 //
 // ConstraintSettings

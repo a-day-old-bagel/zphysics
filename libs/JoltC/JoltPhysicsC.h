@@ -1960,6 +1960,13 @@ JPC_API void
 JPC_RotatedTranslatedShape_GetPosition(const JPC_RotatedTranslatedShape *in_shape, float out_position[3]);
 //--------------------------------------------------------------------------------------------------
 //
+// JPC_TransformedShape
+//
+//--------------------------------------------------------------------------------------------------
+JPC_API bool
+JPC_TransformedShape_CollidePointAny(const JPC_TransformedShape *in_shape, const JPC_Real in_point[3]);
+//--------------------------------------------------------------------------------------------------
+//
 // JPC_ConstraintSettings
 //
 //--------------------------------------------------------------------------------------------------
@@ -2315,6 +2322,9 @@ JPC_Body_IsCollisionCacheInvalid(const JPC_Body *in_body);
 
 JPC_API const JPC_Shape *
 JPC_Body_GetShape(const JPC_Body *in_body);
+
+JPC_API JPC_TransformedShape
+JPC_Body_GetTransformedShape(const JPC_Body *in_body);
 
 JPC_API void
 JPC_Body_GetPosition(const JPC_Body *in_body, JPC_Real out_position[3]);

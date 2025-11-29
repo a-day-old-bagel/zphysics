@@ -14,6 +14,8 @@
 #include <Jolt/Physics/EPhysicsUpdateError.h>
 #include <Jolt/Physics/Collision/NarrowPhaseQuery.h>
 #include <Jolt/Physics/Collision/CollideShape.h>
+#include <Jolt/Physics/Collision/CollisionCollector.h>
+#include <Jolt/Physics/Collision/CollidePointResult.h>
 #include <Jolt/Physics/Collision/Shape/BoxShape.h>
 #include <Jolt/Physics/Collision/Shape/SphereShape.h>
 #include <Jolt/Physics/Collision/Shape/TriangleShape.h>
@@ -354,6 +356,9 @@ FN(toJpc)(JPH::BodyInterface *in) { assert(in); return reinterpret_cast<JPC_Body
 FN(toJph)(JPC_BodyInterface *in) { assert(in); return reinterpret_cast<JPH::BodyInterface *>(in); }
 
 FN(toJpc)(const JPH::TransformedShape *in) { assert(in); return reinterpret_cast<const JPC_TransformedShape *>(in); }
+FN(toJph)(const JPC_TransformedShape *in) { assert(in); return reinterpret_cast<const JPH::TransformedShape *>(in); }
+FN(toJpc)(JPH::TransformedShape *in) { assert(in); return reinterpret_cast<JPC_TransformedShape *>(in); }
+FN(toJph)(JPC_TransformedShape *in) { assert(in); return reinterpret_cast<JPH::TransformedShape *>(in); }
 
 FN(toJph)(const JPC_MassProperties *in) { assert(in); return reinterpret_cast<const JPH::MassProperties *>(in); }
 
@@ -2222,6 +2227,40 @@ JPC_RotatedTranslatedShape_GetPosition(const JPC_RotatedTranslatedShape *in_shap
 }
 //--------------------------------------------------------------------------------------------------
 //
+// JPC_TransformedShape
+//
+//--------------------------------------------------------------------------------------------------
+using SingleCollidePointCollectorBase = JPH::CollisionCollector<JPH::CollidePointResult, JPH::CollisionCollectorTraitsCollidePoint>;
+class SingleCollidePointCollector final : public SingleCollidePointCollectorBase {
+public:
+    bool mHadHit = false;
+    JPH::CollidePointResult mHit;
+
+    void Reset() override {
+        SingleCollidePointCollectorBase::Reset();
+        mHadHit = false;
+    }
+
+    void AddHit(const JPH::CollidePointResult &inResult) override {
+        if (!mHadHit) {
+            mHadHit = true;
+            mHit = inResult;
+            ForceEarlyOut(); // we only care about first hit
+        }
+    }
+};
+//--------------------------------------------------------------------------------------------------
+JPC_API bool
+JPC_TransformedShape_CollidePointAny(const JPC_TransformedShape *in_shape, const JPC_Real in_point[3])
+{
+    const auto shape = toJph(in_shape);
+    const auto point = loadRVec3(in_point);
+    SingleCollidePointCollector collector;
+    shape->CollidePoint(point, collector);
+    return collector.mHadHit;
+}
+//--------------------------------------------------------------------------------------------------
+//
 // JPC_ConstraintSettings
 //
 //--------------------------------------------------------------------------------------------------
@@ -2910,6 +2949,13 @@ JPC_API const JPC_Shape *
 JPC_Body_GetShape(const JPC_Body *in_body)
 {
     return toJpc(toJph(in_body)->GetShape());
+}
+//--------------------------------------------------------------------------------------------------
+JPC_API JPC_TransformedShape
+JPC_Body_GetTransformedShape(const JPC_Body *in_body)
+{
+    const auto transformed_shape = toJph(in_body)->GetTransformedShape();
+    return *toJpc(&transformed_shape);
 }
 //--------------------------------------------------------------------------------------------------
 JPC_API void
