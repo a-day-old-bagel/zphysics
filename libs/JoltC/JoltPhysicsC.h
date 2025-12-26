@@ -2478,7 +2478,13 @@ JPC_API void
 JPC_CharacterVirtual_GetGroundVelocity(const JPC_CharacterVirtual *in_character, float out_ground_velocity[3]);
 
 JPC_API JPC_CharacterGroundState
-JPC_CharacterVirtual_GetGroundState(JPC_CharacterVirtual *in_character);
+JPC_CharacterVirtual_GetGroundState(const JPC_CharacterVirtual *in_character);
+
+JPC_API void
+JPC_CharacterVirtual_GetGroundNormal(const JPC_CharacterVirtual *in_character, float out_normal[3]);
+
+JPC_API bool
+JPC_CharacterVirtual_IsSlopeTooSteep(const JPC_CharacterVirtual *in_character, const float in_normal[3]);
 
 JPC_API void
 JPC_CharacterVirtual_GetPosition(const JPC_CharacterVirtual *in_character, JPC_Real out_position[3]);

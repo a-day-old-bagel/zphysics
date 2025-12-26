@@ -3472,9 +3472,21 @@ JPC_CharacterVirtual_ExtendedUpdate(JPC_CharacterVirtual *in_character,
 }
 //--------------------------------------------------------------------------------------------------
 JPC_API JPC_CharacterGroundState
-JPC_CharacterVirtual_GetGroundState(JPC_CharacterVirtual *in_character)
+JPC_CharacterVirtual_GetGroundState(const JPC_CharacterVirtual *in_character)
 {
     return toJpc(toJph(in_character)->GetGroundState());
+}
+//--------------------------------------------------------------------------------------------------
+JPC_API void
+JPC_CharacterVirtual_GetGroundNormal(const JPC_CharacterVirtual *in_character, float out_normal[3])
+{
+    storeVec3(out_normal, toJph(in_character)->GetGroundNormal());
+}
+//--------------------------------------------------------------------------------------------------
+JPC_API bool
+JPC_CharacterVirtual_IsSlopeTooSteep(const JPC_CharacterVirtual *in_character, const float in_normal[3])
+{
+    return toJph(in_character)->IsSlopeTooSteep(loadVec3(in_normal));
 }
 //--------------------------------------------------------------------------------------------------
 JPC_API void

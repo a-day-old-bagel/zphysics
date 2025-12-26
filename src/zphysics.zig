@@ -2507,8 +2507,16 @@ pub const CharacterVirtual = opaque {
         c.JPC_CharacterVirtual_GetGroundVelocity(@as(*const c.JPC_CharacterVirtual, @ptrCast(character)), &velocity);
         return velocity;
     }
-    pub fn getGroundState(character: *CharacterVirtual) CharacterGroundState {
-        return @enumFromInt(c.JPC_CharacterVirtual_GetGroundState(@as(*c.JPC_CharacterVirtual, @ptrCast(character))));
+    pub fn getGroundState(character: *const CharacterVirtual) CharacterGroundState {
+        return @enumFromInt(c.JPC_CharacterVirtual_GetGroundState(@as(*const c.JPC_CharacterVirtual, @ptrCast(character))));
+    }
+    pub fn getGroundNormal(character: *const CharacterVirtual) [3]f32 {
+        var normal: [3]f32 = undefined;
+        c.JPC_CharacterVirtual_GetGroundNormal(@as(*const c.JPC_CharacterVirtual, @ptrCast(character)), &normal);
+        return normal;
+    }
+    pub fn isSlopeTooSteep(character: *const CharacterVirtual, normal: [3]f32) bool {
+        return c.JPC_CharacterVirtual_IsSlopeTooSteep(@as(*const c.JPC_CharacterVirtual, @ptrCast(character)), &normal);
     }
 
     pub fn getPosition(character: *const CharacterVirtual) [3]Real {
