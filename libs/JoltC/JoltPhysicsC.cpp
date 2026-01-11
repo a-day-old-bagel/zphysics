@@ -3471,6 +3471,38 @@ JPC_CharacterVirtual_ExtendedUpdate(JPC_CharacterVirtual *in_character,
         *reinterpret_cast<JPH::TempAllocator *>(in_temp_allocator));
 }
 //--------------------------------------------------------------------------------------------------
+JPC_API bool
+JPC_CharacterVirtual_SetShape(JPC_CharacterVirtual *in_character,
+                              const JPC_Shape *in_shape,
+                              float in_max_penetration_depth,
+                              const void *in_broad_phase_layer_filter,
+                              const void *in_object_layer_filter,
+                              const void *in_body_filter,
+                              const void *in_shape_filter,
+                              JPC_TempAllocator *in_temp_allocator)
+{
+    const JPH::BroadPhaseLayerFilter broad_phase_layer_filter{};
+    const JPH::ObjectLayerFilter object_layer_filter{};
+    const JPH::BodyFilter body_filter{};
+    const JPH::ShapeFilter shape_filter{};
+    return toJph(in_character)->SetShape(
+        toJph(in_shape),
+        in_max_penetration_depth,
+        in_broad_phase_layer_filter ?
+        *static_cast<const JPH::BroadPhaseLayerFilter *>(in_broad_phase_layer_filter) : broad_phase_layer_filter,
+        in_object_layer_filter ?
+        *static_cast<const JPH::ObjectLayerFilter *>(in_object_layer_filter) : object_layer_filter,
+        in_body_filter ? *static_cast<const JPH::BodyFilter *>(in_body_filter) : body_filter,
+        in_shape_filter ? *static_cast<const JPH::ShapeFilter *>(in_shape_filter) : shape_filter,
+        *reinterpret_cast<JPH::TempAllocator *>(in_temp_allocator));
+}
+//--------------------------------------------------------------------------------------------------
+JPC_API void
+JPC_CharacterVirtual_SetInnerBodyShape(JPC_CharacterVirtual *in_character, const JPC_Shape *in_shape)
+{
+    toJph(in_character)->SetInnerBodyShape(toJph(in_shape));
+}
+//--------------------------------------------------------------------------------------------------
 JPC_API JPC_CharacterGroundState
 JPC_CharacterVirtual_GetGroundState(const JPC_CharacterVirtual *in_character)
 {

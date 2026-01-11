@@ -2496,6 +2496,35 @@ pub const CharacterVirtual = opaque {
         );
     }
 
+    pub fn setShape(
+        character: *CharacterVirtual,
+        shape: *const Shape,
+        max_penetration_depth: f32,
+        args: struct {
+            broad_phase_layer_filter: ?*const BroadPhaseLayerFilter = null,
+            object_layer_filter: ?*const ObjectLayerFilter = null,
+            body_filter: ?*const BodyFilter = null,
+            shape_filter: ?*const ShapeFilter = null,
+        },
+    ) bool {
+        return c.JPC_CharacterVirtual_SetShape(
+            @as(*c.JPC_CharacterVirtual, @ptrCast(character)),
+            @ptrCast(shape),
+            max_penetration_depth,
+            args.broad_phase_layer_filter,
+            args.object_layer_filter,
+            args.body_filter,
+            args.shape_filter,
+            @as(*c.JPC_TempAllocator, @ptrCast(state.?.temp_allocator)),
+        );
+    }
+    pub fn setInnerBodyShape(character: *CharacterVirtual, shape: *const Shape) void {
+        c.JPC_CharacterVirtual_SetInnerBodyShape(
+            @as(*c.JPC_CharacterVirtual, @ptrCast(character)),
+            @ptrCast(shape),
+        );
+    }
+
     pub fn setListener(character: *CharacterVirtual, listener: ?*anyopaque) void {
         c.JPC_CharacterVirtual_SetListener(@as(*c.JPC_CharacterVirtual, @ptrCast(character)), listener);
     }

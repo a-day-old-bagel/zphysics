@@ -2468,6 +2468,19 @@ JPC_CharacterVirtual_ExtendedUpdate(JPC_CharacterVirtual *in_character,
                             const void *in_shape_filter,
                             JPC_TempAllocator *in_temp_allocator);
 
+JPC_API bool
+JPC_CharacterVirtual_SetShape(JPC_CharacterVirtual *in_character,
+                            const JPC_Shape *in_shape,
+                            float in_max_penetration_depth,
+                            const void *in_broad_phase_layer_filter,
+                            const void *in_object_layer_filter,
+                            const void *in_body_filter,
+                            const void *in_shape_filter,
+                            JPC_TempAllocator *in_temp_allocator);
+
+JPC_API void
+JPC_CharacterVirtual_SetInnerBodyShape(JPC_CharacterVirtual *in_character, const JPC_Shape *in_shape);
+
 JPC_API void
 JPC_CharacterVirtual_SetListener(JPC_CharacterVirtual *in_character, void *in_listener);
 
