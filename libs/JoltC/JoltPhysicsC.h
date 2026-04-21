@@ -66,6 +66,8 @@ typedef float JPC_Real;
 
 #define JPC_SUB_SHAPE_ID_EMPTY 0xffffffff
 
+#define JPC_CHARACTER_ID_INVALID 0xffffffff
+
 #define JPC_FLT_EPSILON FLT_EPSILON
 
 #ifdef __cplusplus
@@ -302,6 +304,11 @@ typedef struct JPC_SubShapeID
     uint32_t id;
 } JPC_SubShapeID;
 
+typedef struct JPC_CharacterID
+{
+    uint32_t id;
+} JPC_CharacterID;
+
 #define JPC_ID_EQ(a, b) (a.id == b.id)
 
 // TODO: Consider using structures for IDs
@@ -523,6 +530,7 @@ typedef struct JPC_CharacterSettings
 typedef struct JPC_CharacterVirtualSettings
 {
     JPC_CharacterBaseSettings base;
+    JPC_CharacterID     id;
     float               mass;
     float               max_strength;
     alignas(16) float   shape_offset[4];
@@ -537,6 +545,7 @@ typedef struct JPC_CharacterVirtualSettings
     float               hit_reduction_cos_max_angle;
     float               penetration_recovery_speed;
     const JPC_Shape *   inner_body_shape;
+    JPC_BodyID          inner_body_id_override;
     JPC_ObjectLayer     inner_body_layer;
 } JPC_CharacterVirtualSettings;
 
@@ -1435,6 +1444,11 @@ JPC_PhysicsSystem_GetActiveBodyIDs(const JPC_PhysicsSystem *in_physics_system,
 JPC_API JPC_Body **
 JPC_PhysicsSystem_GetBodiesUnsafe(JPC_PhysicsSystem *in_physics_system);
 
+JPC_API bool
+JPC_PhysicsSystem_WereBodiesInContact(const JPC_PhysicsSystem *in_physics_system,
+                                      JPC_BodyID in_body_1,
+                                      JPC_BodyID in_body_2);
+
 #if JPC_DEBUG_RENDERER == 1
 JPC_API void
 JPC_PhysicsSystem_DrawBodies(JPC_PhysicsSystem *in_physics_system,
@@ -1947,6 +1961,13 @@ JPC_API void
 JPC_RotatedTranslatedShape_GetPosition(const JPC_RotatedTranslatedShape *in_shape, float out_position[3]);
 //--------------------------------------------------------------------------------------------------
 //
+// JPC_TransformedShape
+//
+//--------------------------------------------------------------------------------------------------
+JPC_API bool
+JPC_TransformedShape_CollidePointAny(const JPC_TransformedShape *in_shape, const JPC_Real in_point[3]);
+//--------------------------------------------------------------------------------------------------
+//
 // JPC_ConstraintSettings
 //
 //--------------------------------------------------------------------------------------------------
@@ -2191,6 +2212,12 @@ JPC_BodyInterface_GetObjectLayer(JPC_BodyInterface *in_iface, JPC_BodyID in_body
 
 JPC_API void
 JPC_BodyInterface_SetObjectLayer(JPC_BodyInterface *in_iface, JPC_BodyID in_body_id, JPC_ObjectLayer in_layer);
+
+JPC_API uint64_t
+JPC_BodyInterface_GetUserData(const JPC_BodyInterface *in_iface, JPC_BodyID in_body_id);
+
+JPC_API void
+JPC_BodyInterface_SetUserData(JPC_BodyInterface *in_iface, JPC_BodyID in_body_id, uint64_t in_data);
 //--------------------------------------------------------------------------------------------------
 //
 // JPC_Body
@@ -2325,6 +2352,9 @@ JPC_Body_IsCollisionCacheInvalid(const JPC_Body *in_body);
 
 JPC_API const JPC_Shape *
 JPC_Body_GetShape(const JPC_Body *in_body);
+
+JPC_API JPC_TransformedShape
+JPC_Body_GetTransformedShape(const JPC_Body *in_body);
 
 JPC_API void
 JPC_Body_GetPosition(const JPC_Body *in_body, JPC_Real out_position[3]);
@@ -2468,6 +2498,19 @@ JPC_CharacterVirtual_ExtendedUpdate(JPC_CharacterVirtual *in_character,
                             const void *in_shape_filter,
                             JPC_TempAllocator *in_temp_allocator);
 
+JPC_API bool
+JPC_CharacterVirtual_SetShape(JPC_CharacterVirtual *in_character,
+                            const JPC_Shape *in_shape,
+                            float in_max_penetration_depth,
+                            const void *in_broad_phase_layer_filter,
+                            const void *in_object_layer_filter,
+                            const void *in_body_filter,
+                            const void *in_shape_filter,
+                            JPC_TempAllocator *in_temp_allocator);
+
+JPC_API void
+JPC_CharacterVirtual_SetInnerBodyShape(JPC_CharacterVirtual *in_character, const JPC_Shape *in_shape);
+
 JPC_API void
 JPC_CharacterVirtual_SetListener(JPC_CharacterVirtual *in_character, void *in_listener);
 
@@ -2478,7 +2521,13 @@ JPC_API void
 JPC_CharacterVirtual_GetGroundVelocity(const JPC_CharacterVirtual *in_character, float out_ground_velocity[3]);
 
 JPC_API JPC_CharacterGroundState
-JPC_CharacterVirtual_GetGroundState(JPC_CharacterVirtual *in_character);
+JPC_CharacterVirtual_GetGroundState(const JPC_CharacterVirtual *in_character);
+
+JPC_API void
+JPC_CharacterVirtual_GetGroundNormal(const JPC_CharacterVirtual *in_character, float out_normal[3]);
+
+JPC_API bool
+JPC_CharacterVirtual_IsSlopeTooSteep(const JPC_CharacterVirtual *in_character, const float in_normal[3]);
 
 JPC_API void
 JPC_CharacterVirtual_GetPosition(const JPC_CharacterVirtual *in_character, JPC_Real out_position[3]);
@@ -2497,6 +2546,15 @@ JPC_CharacterVirtual_GetLinearVelocity(const JPC_CharacterVirtual *in_character,
 
 JPC_API void
 JPC_CharacterVirtual_SetLinearVelocity(JPC_CharacterVirtual *in_character, const float in_linear_velocity[3]);
+
+JPC_API uint64_t
+JPC_CharacterVirtual_GetUserData(const JPC_CharacterVirtual *in_character);
+
+JPC_API void
+JPC_CharacterVirtual_SetUserData(JPC_CharacterVirtual *in_character, uint64_t in_data);
+
+JPC_API JPC_BodyID
+JPC_CharacterVirtual_GetInnerBodyID(const JPC_CharacterVirtual *in_character);
 //--------------------------------------------------------------------------------------------------
 #ifdef __cplusplus
 }

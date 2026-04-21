@@ -54,6 +54,16 @@ pub const SubShapeId = enum(SubShapeIdInt) {
     }
 };
 
+const CharacterIdInt = std.meta.fieldInfo(c.JPC_CharacterID, .id).type;
+pub const CharacterId = enum(CharacterIdInt) {
+    invalid = c.JPC_CHARACTER_ID_INVALID,
+    _,
+
+    pub inline fn toJpc(self: CharacterId) c.JPC_CharacterID {
+        return .{ .id = @intFromEnum(self) };
+    }
+};
+
 pub const max_physics_jobs = c.JPC_MAX_PHYSICS_JOBS;
 pub const max_physics_barriers = c.JPC_MAX_PHYSICS_BARRIERS;
 
@@ -913,6 +923,7 @@ pub const CharacterVirtualSettings = extern struct {
     }
 
     base: CharacterBaseSettings,
+    id: CharacterId,
     mass: f32,
     max_strength: f32,
     shape_offset: [4]f32 align(16), // 4th element is ignored
@@ -927,6 +938,7 @@ pub const CharacterVirtualSettings = extern struct {
     hit_reduction_cos_max_angle: f32,
     penetration_recovery_speed: f32,
     inner_body_shape: ?*Shape,
+    inner_body_id_override: BodyId,
     inner_body_layer: ObjectLayer,
 
     comptime {
@@ -1554,6 +1566,14 @@ pub const PhysicsSystem = opaque {
         const ptr = c.JPC_PhysicsSystem_GetBodiesUnsafe(@as(*c.JPC_PhysicsSystem, @ptrCast(physics_system)));
         return @as([*]const *Body, @ptrCast(ptr))[0..physics_system.getNumBodies()];
     }
+
+    pub fn wereBodiesInContact(physics_system: *const PhysicsSystem, body_1: BodyId, body_2: BodyId) bool {
+        return c.JPC_PhysicsSystem_WereBodiesInContact(
+            @as(*const c.JPC_PhysicsSystem, @ptrCast(physics_system)),
+            body_1.toJpc(),
+            body_2.toJpc(),
+        );
+    }
 };
 //--------------------------------------------------------------------------------------------------
 //
@@ -2035,6 +2055,14 @@ pub const BodyInterface = opaque {
             in_layer,
         );
     }
+
+    pub fn getUserData(body_iface: *const BodyInterface, body_id: BodyId) u64 {
+        return c.JPC_BodyInterface_GetUserData(@ptrCast(body_iface), body_id.toJpc());
+    }
+
+    pub fn setUserData(body_iface: *BodyInterface, body_id: BodyId, data: u64) void {
+        c.JPC_BodyInterface_SetUserData(@ptrCast(body_iface), body_id.toJpc(), data);
+    }
 };
 //--------------------------------------------------------------------------------------------------
 //
@@ -2287,6 +2315,11 @@ pub const Body = extern struct {
         return @as(*const Shape, @ptrCast(c.JPC_Body_GetShape(@as(*const c.JPC_Body, @ptrCast(body)))));
     }
 
+    pub fn getTransformedShape(body: *const Body) TransformedShape {
+        const c_result = c.JPC_Body_GetTransformedShape(@as(*const c.JPC_Body, @ptrCast(body)));
+        return @as(*TransformedShape, @constCast(@ptrCast(&c_result))).*;
+    }
+
     pub fn getPosition(body: *const Body) [3]Real {
         var position: [3]Real = undefined;
         c.JPC_Body_GetPosition(@as(*const c.JPC_Body, @ptrCast(body)), &position);
@@ -2533,6 +2566,35 @@ pub const CharacterVirtual = opaque {
         );
     }
 
+    pub fn setShape(
+        character: *CharacterVirtual,
+        shape: *const Shape,
+        max_penetration_depth: f32,
+        args: struct {
+            broad_phase_layer_filter: ?*const BroadPhaseLayerFilter = null,
+            object_layer_filter: ?*const ObjectLayerFilter = null,
+            body_filter: ?*const BodyFilter = null,
+            shape_filter: ?*const ShapeFilter = null,
+        },
+    ) bool {
+        return c.JPC_CharacterVirtual_SetShape(
+            @as(*c.JPC_CharacterVirtual, @ptrCast(character)),
+            @ptrCast(shape),
+            max_penetration_depth,
+            args.broad_phase_layer_filter,
+            args.object_layer_filter,
+            args.body_filter,
+            args.shape_filter,
+            @as(*c.JPC_TempAllocator, @ptrCast(state.?.temp_allocator)),
+        );
+    }
+    pub fn setInnerBodyShape(character: *CharacterVirtual, shape: *const Shape) void {
+        c.JPC_CharacterVirtual_SetInnerBodyShape(
+            @as(*c.JPC_CharacterVirtual, @ptrCast(character)),
+            @ptrCast(shape),
+        );
+    }
+
     pub fn setListener(character: *CharacterVirtual, listener: ?*anyopaque) void {
         c.JPC_CharacterVirtual_SetListener(@as(*c.JPC_CharacterVirtual, @ptrCast(character)), listener);
     }
@@ -2544,8 +2606,16 @@ pub const CharacterVirtual = opaque {
         c.JPC_CharacterVirtual_GetGroundVelocity(@as(*const c.JPC_CharacterVirtual, @ptrCast(character)), &velocity);
         return velocity;
     }
-    pub fn getGroundState(character: *CharacterVirtual) CharacterGroundState {
-        return @enumFromInt(c.JPC_CharacterVirtual_GetGroundState(@as(*c.JPC_CharacterVirtual, @ptrCast(character))));
+    pub fn getGroundState(character: *const CharacterVirtual) CharacterGroundState {
+        return @enumFromInt(c.JPC_CharacterVirtual_GetGroundState(@as(*const c.JPC_CharacterVirtual, @ptrCast(character))));
+    }
+    pub fn getGroundNormal(character: *const CharacterVirtual) [3]f32 {
+        var normal: [3]f32 = undefined;
+        c.JPC_CharacterVirtual_GetGroundNormal(@as(*const c.JPC_CharacterVirtual, @ptrCast(character)), &normal);
+        return normal;
+    }
+    pub fn isSlopeTooSteep(character: *const CharacterVirtual, normal: [3]f32) bool {
+        return c.JPC_CharacterVirtual_IsSlopeTooSteep(@as(*const c.JPC_CharacterVirtual, @ptrCast(character)), &normal);
     }
 
     pub fn getPosition(character: *const CharacterVirtual) [3]Real {
@@ -2574,6 +2644,17 @@ pub const CharacterVirtual = opaque {
     }
     pub fn setLinearVelocity(character: *CharacterVirtual, velocity: [3]f32) void {
         c.JPC_CharacterVirtual_SetLinearVelocity(@as(*c.JPC_CharacterVirtual, @ptrCast(character)), &velocity);
+    }
+
+    pub fn getUserData(character: *const CharacterVirtual) u64 {
+        return c.JPC_CharacterVirtual_GetUserData(@as(*const c.JPC_CharacterVirtual, @ptrCast(character)));
+    }
+    pub fn setUserData(character: *CharacterVirtual, data: u64) void {
+        c.JPC_CharacterVirtual_SetUserData(@as(*c.JPC_CharacterVirtual, @ptrCast(character)), data);
+    }
+
+    pub fn getInnerBodyId(character: *const CharacterVirtual) BodyId {
+        return @enumFromInt(c.JPC_CharacterVirtual_GetInnerBodyID(@as(*const c.JPC_CharacterVirtual, @ptrCast(character))).id);
     }
 };
 //--------------------------------------------------------------------------------------------------
@@ -3605,6 +3686,31 @@ pub const ConvexHullShape = opaque {
         );
     }
 };
+
+//--------------------------------------------------------------------------------------------------
+//
+// TransformedShape
+//
+//--------------------------------------------------------------------------------------------------
+pub const TransformedShape = extern struct {
+    shape_position_com: [4]Real align(rvec_align), // 4th element is ignored
+    shape_rotation: [4]f32 align(16),
+    shape: *const Shape,
+    shape_scale: [3]f32,
+    body_id: BodyId,
+    sub_shape_id_creator: SubShapeIDCreator,
+
+    pub fn collidePointAny(self: *const TransformedShape, point: [3]Real) bool {
+        return c.JPC_TransformedShape_CollidePointAny(@as(*const c.JPC_TransformedShape, @ptrCast(self)), &point);
+    }
+
+    comptime {
+        assert(@sizeOf(TransformedShape) == @sizeOf(c.JPC_TransformedShape));
+        assert(@offsetOf(TransformedShape, "body_id") == @offsetOf(c.JPC_TransformedShape, "body_id"));
+        assert(@offsetOf(TransformedShape, "shape") == @offsetOf(c.JPC_TransformedShape, "shape"));
+    }
+};
+
 //--------------------------------------------------------------------------------------------------
 //
 // ConstraintSettings
