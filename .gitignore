@@ -1,5 +1,6 @@
 # Ignore some special directories
 .zig-cache
+zig-pkg
 zig-out
 
 # Ignore some special OS files
