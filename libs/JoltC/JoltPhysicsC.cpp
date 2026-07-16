@@ -522,6 +522,14 @@ static JPH::TraceFunction default_trace = nullptr;
 
 #ifdef JPH_ENABLE_ASSERTS
 static JPH::AssertFailedFunction default_assert_failed = nullptr;
+static JPC_AssertFailedFunction jpc_assert_failed = nullptr;
+
+static bool assertFailedAdapter(const char *in_expression, const char *in_message, const char *in_file, JPH::uint in_line)
+{
+    const uint8_t result = jpc_assert_failed(in_expression, in_message, in_file, in_line);
+    assert(result <= 1);
+    return result != 0;
+}
 #endif
 //--------------------------------------------------------------------------------------------------
 JPC_API void
@@ -566,7 +574,8 @@ JPC_RegisterAssertFailed(JPC_AssertFailedFunction in_assert_failed)
         default_assert_failed = JPH::AssertFailed;
     }
 
-    JPH::AssertFailed = in_assert_failed ? in_assert_failed : default_assert_failed;
+    jpc_assert_failed = in_assert_failed;
+    JPH::AssertFailed = in_assert_failed ? assertFailedAdapter : default_assert_failed;
 #endif
 }
 //--------------------------------------------------------------------------------------------------
@@ -776,7 +785,9 @@ public:
         BodyDrawFilter(const JPC_BodyDrawFilterFunc func) : func(func) {}
         virtual bool ShouldDraw(const JPH::Body& inBody) const override
         {
-            return func(toJpc(&inBody));
+            const uint8_t result = func(toJpc(&inBody));
+            assert(result <= 1);
+            return result != 0;
         }
     };
 
@@ -956,10 +967,409 @@ JPC_DebugRenderer_TriangleBatch_GetRefCount(const JPC_DebugRenderer_TriangleBatc
 }
 #endif //JPC_DEBUG_RENDERER
 
+template <typename VTable>
+static const VTable *getInterfaceVTable(const void *in_interface)
+{
+    return *static_cast<const VTable *const *>(in_interface);
+}
+
+class StreamOutAdapter final : public JPH::StreamOut
+{
+public:
+    explicit StreamOutAdapter(void *in_interface) : mInterface(in_interface) { }
+
+    void WriteBytes(const void *in_data, size_t in_num_bytes) override
+    {
+        getInterfaceVTable<JPC_StreamOutVTable>(mInterface)->WriteBytes(mInterface, in_data, in_num_bytes);
+    }
+
+    bool IsFailed() const override
+    {
+        const uint8_t result = getInterfaceVTable<JPC_StreamOutVTable>(mInterface)->IsFailed(mInterface);
+        assert(result <= 1);
+        return result != 0;
+    }
+
+private:
+    void *mInterface;
+};
+
+class StreamInAdapter final : public JPH::StreamIn
+{
+public:
+    explicit StreamInAdapter(void *in_interface) : mInterface(in_interface) { }
+
+    void ReadBytes(void *out_data, size_t in_num_bytes) override
+    {
+        getInterfaceVTable<JPC_StreamInVTable>(mInterface)->ReadBytes(mInterface, out_data, in_num_bytes);
+    }
+
+    bool IsEOF() const override
+    {
+        const uint8_t result = getInterfaceVTable<JPC_StreamInVTable>(mInterface)->IsEOF(mInterface);
+        assert(result <= 1);
+        return result != 0;
+    }
+
+    bool IsFailed() const override
+    {
+        const uint8_t result = getInterfaceVTable<JPC_StreamInVTable>(mInterface)->IsFailed(mInterface);
+        assert(result <= 1);
+        return result != 0;
+    }
+
+private:
+    void *mInterface;
+};
+
+class BroadPhaseLayerInterfaceAdapter final : public JPH::BroadPhaseLayerInterface
+{
+public:
+    explicit BroadPhaseLayerInterfaceAdapter(const void *in_interface) : mInterface(in_interface) { }
+
+    JPH::uint GetNumBroadPhaseLayers() const override
+    {
+        return getInterfaceVTable<JPC_BroadPhaseLayerInterfaceVTable>(mInterface)->GetNumBroadPhaseLayers(mInterface);
+    }
+
+    JPH::BroadPhaseLayer GetBroadPhaseLayer(JPH::ObjectLayer in_layer) const override
+    {
+        const auto *vtable = getInterfaceVTable<JPC_BroadPhaseLayerInterfaceVTable>(mInterface);
+#ifdef _MSC_VER
+        JPC_BroadPhaseLayer layer;
+        vtable->GetBroadPhaseLayer(mInterface, &layer, static_cast<JPC_ObjectLayer>(in_layer));
+        return JPH::BroadPhaseLayer(layer);
+#else
+        return JPH::BroadPhaseLayer(vtable->GetBroadPhaseLayer(mInterface, static_cast<JPC_ObjectLayer>(in_layer)));
+#endif
+    }
+
+private:
+    const void *mInterface;
+};
+
+class ObjectVsBroadPhaseLayerFilterAdapter final : public JPH::ObjectVsBroadPhaseLayerFilter
+{
+public:
+    explicit ObjectVsBroadPhaseLayerFilterAdapter(const void *in_interface) : mInterface(in_interface) { }
+
+    bool ShouldCollide(JPH::ObjectLayer in_layer1, JPH::BroadPhaseLayer in_layer2) const override
+    {
+        const uint8_t result = getInterfaceVTable<JPC_ObjectVsBroadPhaseLayerFilterVTable>(mInterface)->ShouldCollide(
+            mInterface,
+            static_cast<JPC_ObjectLayer>(in_layer1),
+            static_cast<JPC_BroadPhaseLayer>(in_layer2.GetValue()));
+        assert(result <= 1);
+        return result != 0;
+    }
+
+private:
+    const void *mInterface;
+};
+
+class BroadPhaseLayerFilterAdapter final : public JPH::BroadPhaseLayerFilter
+{
+public:
+    explicit BroadPhaseLayerFilterAdapter(const void *in_interface) : mInterface(in_interface) { }
+
+    bool ShouldCollide(JPH::BroadPhaseLayer in_layer) const override
+    {
+        const uint8_t result = getInterfaceVTable<JPC_BroadPhaseLayerFilterVTable>(mInterface)->ShouldCollide(
+            mInterface, static_cast<JPC_BroadPhaseLayer>(in_layer.GetValue()));
+        assert(result <= 1);
+        return result != 0;
+    }
+
+private:
+    const void *mInterface;
+};
+
+class ObjectLayerFilterAdapter final : public JPH::ObjectLayerFilter
+{
+public:
+    explicit ObjectLayerFilterAdapter(const void *in_interface) : mInterface(in_interface) { }
+
+    bool ShouldCollide(JPH::ObjectLayer in_layer) const override
+    {
+        const uint8_t result = getInterfaceVTable<JPC_ObjectLayerFilterVTable>(mInterface)->ShouldCollide(
+            mInterface, static_cast<JPC_ObjectLayer>(in_layer));
+        assert(result <= 1);
+        return result != 0;
+    }
+
+private:
+    const void *mInterface;
+};
+
+class BodyFilterAdapter final : public JPH::BodyFilter
+{
+public:
+    explicit BodyFilterAdapter(const void *in_interface) : mInterface(in_interface) { }
+
+    bool ShouldCollide(const JPH::BodyID &in_body_id) const override
+    {
+        const uint8_t result = getInterfaceVTable<JPC_BodyFilterVTable>(mInterface)->ShouldCollide(
+            mInterface, reinterpret_cast<const JPC_BodyID *>(&in_body_id));
+        assert(result <= 1);
+        return result != 0;
+    }
+
+    bool ShouldCollideLocked(const JPH::Body &in_body) const override
+    {
+        const uint8_t result = getInterfaceVTable<JPC_BodyFilterVTable>(mInterface)->ShouldCollideLocked(
+            mInterface, reinterpret_cast<const JPC_Body *>(&in_body));
+        assert(result <= 1);
+        return result != 0;
+    }
+
+private:
+    const void *mInterface;
+};
+
+class ShapeFilterAdapter final : public JPH::ShapeFilter
+{
+public:
+    explicit ShapeFilterAdapter(const void *in_interface) : mInterface(in_interface) { }
+
+    bool ShouldCollide(const JPH::Shape *in_shape, const JPH::SubShapeID &in_sub_shape_id) const override
+    {
+        const uint8_t result = getInterfaceVTable<JPC_ShapeFilterVTable>(mInterface)->ShouldCollide(
+            mInterface,
+            reinterpret_cast<const JPC_Shape *>(in_shape),
+            reinterpret_cast<const JPC_SubShapeID *>(&in_sub_shape_id),
+            reinterpret_cast<const JPC_BodyID *>(&mBodyID2));
+        assert(result <= 1);
+        return result != 0;
+    }
+
+    bool ShouldCollide(const JPH::Shape *in_shape1,
+                       const JPH::SubShapeID &in_sub_shape_id1,
+                       const JPH::Shape *in_shape2,
+                       const JPH::SubShapeID &in_sub_shape_id2) const override
+    {
+        const uint8_t result = getInterfaceVTable<JPC_ShapeFilterVTable>(mInterface)->PairShouldCollide(
+            mInterface,
+            reinterpret_cast<const JPC_Shape *>(in_shape1),
+            reinterpret_cast<const JPC_SubShapeID *>(&in_sub_shape_id1),
+            reinterpret_cast<const JPC_Shape *>(in_shape2),
+            reinterpret_cast<const JPC_SubShapeID *>(&in_sub_shape_id2),
+            reinterpret_cast<const JPC_BodyID *>(&mBodyID2));
+        assert(result <= 1);
+        return result != 0;
+    }
+
+private:
+    const void *mInterface;
+};
+
+class CharacterContactListenerAdapter final : public JPH::CharacterContactListener
+{
+public:
+    void SetInterface(void *in_interface) { mInterface = in_interface; }
+
+    void OnAdjustBodyVelocity(const JPH::CharacterVirtual *in_character, const JPH::Body &in_body,
+                              JPH::Vec3 &io_linear_velocity, JPH::Vec3 &io_angular_velocity) override
+    {
+        float linear_velocity[3], angular_velocity[3];
+        storeVec3(linear_velocity, io_linear_velocity);
+        storeVec3(angular_velocity, io_angular_velocity);
+        vtable()->OnAdjustBodyVelocity(mInterface, toJpc(in_character), toJpc(&in_body), linear_velocity, angular_velocity);
+        io_linear_velocity = loadVec3(linear_velocity);
+        io_angular_velocity = loadVec3(angular_velocity);
+    }
+
+    bool OnContactValidate(const JPH::CharacterVirtual *in_character, const JPH::BodyID &in_body_id,
+                           const JPH::SubShapeID &in_sub_shape_id) override
+    {
+        const uint8_t result = vtable()->OnContactValidate(
+            mInterface, toJpc(in_character), reinterpret_cast<const JPC_BodyID *>(&in_body_id),
+            reinterpret_cast<const JPC_SubShapeID *>(&in_sub_shape_id));
+        assert(result <= 1);
+        return result != 0;
+    }
+
+    bool OnCharacterContactValidate(const JPH::CharacterVirtual *in_character,
+                                    const JPH::CharacterVirtual *in_other_character,
+                                    const JPH::SubShapeID &in_sub_shape_id) override
+    {
+        const uint8_t result = vtable()->OnCharacterContactValidate(
+            mInterface, toJpc(in_character), toJpc(in_other_character),
+            reinterpret_cast<const JPC_SubShapeID *>(&in_sub_shape_id));
+        assert(result <= 1);
+        return result != 0;
+    }
+
+    void OnContactAdded(const JPH::CharacterVirtual *in_character, const JPH::BodyID &in_body_id,
+                        const JPH::SubShapeID &in_sub_shape_id, JPH::RVec3Arg in_position,
+                        JPH::Vec3Arg in_normal, JPH::CharacterContactSettings &io_settings) override
+    {
+        callBodyContact(vtable()->OnContactAdded, in_character, in_body_id, in_sub_shape_id,
+                        in_position, in_normal, io_settings);
+    }
+
+    void OnContactPersisted(const JPH::CharacterVirtual *in_character, const JPH::BodyID &in_body_id,
+                            const JPH::SubShapeID &in_sub_shape_id, JPH::RVec3Arg in_position,
+                            JPH::Vec3Arg in_normal, JPH::CharacterContactSettings &io_settings) override
+    {
+        callBodyContact(vtable()->OnContactPersisted, in_character, in_body_id, in_sub_shape_id,
+                        in_position, in_normal, io_settings);
+    }
+
+    void OnContactRemoved(const JPH::CharacterVirtual *in_character, const JPH::BodyID &in_body_id,
+                          const JPH::SubShapeID &in_sub_shape_id) override
+    {
+        vtable()->OnContactRemoved(mInterface, toJpc(in_character),
+            reinterpret_cast<const JPC_BodyID *>(&in_body_id),
+            reinterpret_cast<const JPC_SubShapeID *>(&in_sub_shape_id));
+    }
+
+    void OnCharacterContactAdded(const JPH::CharacterVirtual *in_character,
+                                 const JPH::CharacterVirtual *in_other_character,
+                                 const JPH::SubShapeID &in_sub_shape_id, JPH::RVec3Arg in_position,
+                                 JPH::Vec3Arg in_normal, JPH::CharacterContactSettings &io_settings) override
+    {
+        callCharacterContact(vtable()->OnCharacterContactAdded, in_character, in_other_character,
+                             in_sub_shape_id, in_position, in_normal, io_settings);
+    }
+
+    void OnCharacterContactPersisted(const JPH::CharacterVirtual *in_character,
+                                     const JPH::CharacterVirtual *in_other_character,
+                                     const JPH::SubShapeID &in_sub_shape_id, JPH::RVec3Arg in_position,
+                                     JPH::Vec3Arg in_normal, JPH::CharacterContactSettings &io_settings) override
+    {
+        callCharacterContact(vtable()->OnCharacterContactPersisted, in_character, in_other_character,
+                             in_sub_shape_id, in_position, in_normal, io_settings);
+    }
+
+    void OnCharacterContactRemoved(const JPH::CharacterVirtual *in_character,
+                                   const JPH::CharacterID &in_other_character_id,
+                                   const JPH::SubShapeID &in_sub_shape_id) override
+    {
+        vtable()->OnCharacterContactRemoved(mInterface, toJpc(in_character),
+            reinterpret_cast<const JPC_CharacterID *>(&in_other_character_id),
+            reinterpret_cast<const JPC_SubShapeID *>(&in_sub_shape_id));
+    }
+
+    void OnContactSolve(const JPH::CharacterVirtual *in_character, const JPH::BodyID &in_body_id,
+                        const JPH::SubShapeID &in_sub_shape_id, JPH::RVec3Arg in_position,
+                        JPH::Vec3Arg in_normal, JPH::Vec3Arg in_contact_velocity,
+                        const JPH::PhysicsMaterial *in_material, JPH::Vec3Arg in_character_velocity,
+                        JPH::Vec3 &io_new_velocity) override
+    {
+        JPC_Real position[3]; float normal[3], contact_velocity[3], character_velocity[3], new_velocity[3];
+        storeRVec3(position, in_position); storeVec3(normal, in_normal); storeVec3(contact_velocity, in_contact_velocity);
+        storeVec3(character_velocity, in_character_velocity); storeVec3(new_velocity, io_new_velocity);
+        vtable()->OnContactSolve(mInterface, toJpc(in_character),
+            reinterpret_cast<const JPC_BodyID *>(&in_body_id),
+            reinterpret_cast<const JPC_SubShapeID *>(&in_sub_shape_id), position, normal, contact_velocity,
+            toJpc(in_material), character_velocity, new_velocity);
+        io_new_velocity = loadVec3(new_velocity);
+    }
+
+    void OnCharacterContactSolve(const JPH::CharacterVirtual *in_character,
+                                 const JPH::CharacterVirtual *in_other_character,
+                                 const JPH::SubShapeID &in_sub_shape_id, JPH::RVec3Arg in_position,
+                                 JPH::Vec3Arg in_normal, JPH::Vec3Arg in_contact_velocity,
+                                 const JPH::PhysicsMaterial *in_material, JPH::Vec3Arg in_character_velocity,
+                                 JPH::Vec3 &io_new_velocity) override
+    {
+        JPC_Real position[3]; float normal[3], contact_velocity[3], character_velocity[3], new_velocity[3];
+        storeRVec3(position, in_position); storeVec3(normal, in_normal); storeVec3(contact_velocity, in_contact_velocity);
+        storeVec3(character_velocity, in_character_velocity); storeVec3(new_velocity, io_new_velocity);
+        vtable()->OnCharacterContactSolve(mInterface, toJpc(in_character), toJpc(in_other_character),
+            reinterpret_cast<const JPC_SubShapeID *>(&in_sub_shape_id), position, normal, contact_velocity,
+            toJpc(in_material), character_velocity, new_velocity);
+        io_new_velocity = loadVec3(new_velocity);
+    }
+
+private:
+    using BodyContactCallback = void (*)(void *, const JPC_CharacterVirtual *, const JPC_BodyID *,
+        const JPC_SubShapeID *, const JPC_Real[3], const float[3], JPC_CharacterContactSettings *);
+    using CharacterContactCallback = void (*)(void *, const JPC_CharacterVirtual *, const JPC_CharacterVirtual *,
+        const JPC_SubShapeID *, const JPC_Real[3], const float[3], JPC_CharacterContactSettings *);
+
+    const JPC_CharacterContactListenerVTable *vtable() const
+    {
+        return getInterfaceVTable<JPC_CharacterContactListenerVTable>(mInterface);
+    }
+
+    void callBodyContact(BodyContactCallback in_callback, const JPH::CharacterVirtual *in_character,
+                         const JPH::BodyID &in_body_id, const JPH::SubShapeID &in_sub_shape_id,
+                         JPH::RVec3Arg in_position, JPH::Vec3Arg in_normal,
+                         JPH::CharacterContactSettings &io_settings)
+    {
+        JPC_Real position[3]; float normal[3]; storeRVec3(position, in_position); storeVec3(normal, in_normal);
+        in_callback(mInterface, toJpc(in_character), reinterpret_cast<const JPC_BodyID *>(&in_body_id),
+            reinterpret_cast<const JPC_SubShapeID *>(&in_sub_shape_id), position, normal,
+            reinterpret_cast<JPC_CharacterContactSettings *>(&io_settings));
+    }
+
+    void callCharacterContact(CharacterContactCallback in_callback, const JPH::CharacterVirtual *in_character,
+                              const JPH::CharacterVirtual *in_other_character,
+                              const JPH::SubShapeID &in_sub_shape_id, JPH::RVec3Arg in_position,
+                              JPH::Vec3Arg in_normal, JPH::CharacterContactSettings &io_settings)
+    {
+        JPC_Real position[3]; float normal[3]; storeRVec3(position, in_position); storeVec3(normal, in_normal);
+        in_callback(mInterface, toJpc(in_character), toJpc(in_other_character),
+            reinterpret_cast<const JPC_SubShapeID *>(&in_sub_shape_id), position, normal,
+            reinterpret_cast<JPC_CharacterContactSettings *>(&io_settings));
+    }
+
+    void *mInterface = nullptr;
+};
+
+class CharacterVirtualImpl final : public JPH::CharacterVirtual
+{
+public:
+    CharacterVirtualImpl(const JPH::CharacterVirtualSettings *in_settings, JPH::RVec3Arg in_position,
+                         JPH::QuatArg in_rotation, JPH::PhysicsSystem *in_physics_system) :
+        JPH::CharacterVirtual(in_settings, in_position, in_rotation, in_physics_system) { }
+
+    void SetCListener(void *in_listener)
+    {
+        mListenerAdapter.SetInterface(in_listener);
+        SetListener(in_listener ? &mListenerAdapter : nullptr);
+    }
+
+private:
+    CharacterContactListenerAdapter mListenerAdapter;
+};
+
+class ObjectLayerPairFilterAdapter final : public JPH::ObjectLayerPairFilter
+{
+public:
+    explicit ObjectLayerPairFilterAdapter(const void *in_interface) : mInterface(in_interface) { }
+
+    bool ShouldCollide(JPH::ObjectLayer in_layer1, JPH::ObjectLayer in_layer2) const override
+    {
+        const uint8_t result = getInterfaceVTable<JPC_ObjectLayerPairFilterVTable>(mInterface)->ShouldCollide(
+            mInterface,
+            static_cast<JPC_ObjectLayer>(in_layer1),
+            static_cast<JPC_ObjectLayer>(in_layer2));
+        assert(result <= 1);
+        return result != 0;
+    }
+
+private:
+    const void *mInterface;
+};
+
 struct PhysicsSystemData
 {
+    PhysicsSystemData(const void *in_broad_phase_layer_interface,
+                      const void *in_object_vs_broad_phase_layer_filter,
+                      const void *in_object_layer_pair_filter) :
+        broad_phase_layer_interface(in_broad_phase_layer_interface),
+        object_vs_broad_phase_layer_filter(in_object_vs_broad_phase_layer_filter),
+        object_layer_pair_filter(in_object_layer_pair_filter)
+    {
+    }
+
     uint64_t safety_token = 0xC0DEC0DEC0DEC0DE;
     ContactListener *contact_listener = nullptr;
+    BroadPhaseLayerInterfaceAdapter broad_phase_layer_interface;
+    ObjectVsBroadPhaseLayerFilterAdapter object_vs_broad_phase_layer_filter;
+    ObjectLayerPairFilterAdapter object_layer_pair_filter;
 };
 
 JPC_API JPC_PhysicsSystem *
@@ -980,8 +1390,10 @@ JPC_PhysicsSystem_Create(uint32_t in_max_bodies,
             JPH::Allocate(sizeof(JPH::PhysicsSystem) + sizeof(PhysicsSystemData)));
     ::new (physics_system) JPH::PhysicsSystem();
 
-    PhysicsSystemData* data =
-        ::new (reinterpret_cast<uint8_t *>(physics_system) + sizeof(JPH::PhysicsSystem)) PhysicsSystemData();
+    PhysicsSystemData* data = ::new (reinterpret_cast<uint8_t *>(physics_system) + sizeof(JPH::PhysicsSystem))
+        PhysicsSystemData(in_broad_phase_layer_interface,
+                          in_object_vs_broad_phase_layer_filter,
+                          in_object_layer_pair_filter);
     assert(data->safety_token == 0xC0DEC0DEC0DEC0DE);
 
     physics_system->Init(
@@ -989,9 +1401,9 @@ JPC_PhysicsSystem_Create(uint32_t in_max_bodies,
         in_num_body_mutexes,
         in_max_body_pairs,
         in_max_contact_constraints,
-        *static_cast<const JPH::BroadPhaseLayerInterface *>(in_broad_phase_layer_interface),
-        *static_cast<const JPH::ObjectVsBroadPhaseLayerFilter *>(in_object_vs_broad_phase_layer_filter),
-        *static_cast<const JPH::ObjectLayerPairFilter *>(in_object_layer_pair_filter));
+        data->broad_phase_layer_interface,
+        data->object_vs_broad_phase_layer_filter,
+        data->object_layer_pair_filter);
 
     return toJpc(physics_system);
 }
@@ -1010,6 +1422,7 @@ JPC_PhysicsSystem_Destroy(JPC_PhysicsSystem *in_physics_system)
     }
 
     toJph(in_physics_system)->~PhysicsSystem();
+    data->~PhysicsSystemData();
     JPH::Free(in_physics_system);
 }
 //--------------------------------------------------------------------------------------------------
@@ -1272,18 +1685,21 @@ JPC_NarrowPhaseQuery_CastRay(const JPC_NarrowPhaseQuery *in_query,
     const JPH::BroadPhaseLayerFilter broad_phase_layer_filter{};
     const JPH::ObjectLayerFilter object_layer_filter{};
     const JPH::BodyFilter body_filter{};
+    const BroadPhaseLayerFilterAdapter broad_phase_layer_filter_adapter(in_broad_phase_layer_filter);
+    const ObjectLayerFilterAdapter object_layer_filter_adapter(in_object_layer_filter);
+    const BodyFilterAdapter body_filter_adapter(in_body_filter);
 
     auto query = reinterpret_cast<const JPH::NarrowPhaseQuery *>(in_query);
     return query->CastRay(
         *reinterpret_cast<const JPH::RRayCast *>(in_ray),
         *reinterpret_cast<JPH::RayCastResult *>(io_hit),
         in_broad_phase_layer_filter ?
-            *static_cast<const JPH::BroadPhaseLayerFilter *>(in_broad_phase_layer_filter) :
+            static_cast<const JPH::BroadPhaseLayerFilter &>(broad_phase_layer_filter_adapter) :
             broad_phase_layer_filter,
         in_object_layer_filter ?
-            *static_cast<const JPH::ObjectLayerFilter *>(in_object_layer_filter) : object_layer_filter,
+            static_cast<const JPH::ObjectLayerFilter &>(object_layer_filter_adapter) : object_layer_filter,
         in_body_filter ?
-            *static_cast<const JPH::BodyFilter *>(in_body_filter) : body_filter);
+            static_cast<const JPH::BodyFilter &>(body_filter_adapter) : body_filter);
 }
 //--------------------------------------------------------------------------------------------------
 //
@@ -1960,6 +2376,13 @@ JPC_Shape_GetLocalBounds(const JPC_Shape *in_shape)
 }
 //--------------------------------------------------------------------------------------------------
 JPC_API void
+JPC_Shape_GetLocalBoundsInto(const JPC_Shape *in_shape, JPC_AABox *out_bounds)
+{
+    auto bounds = toJph(in_shape)->GetLocalBounds();
+    *out_bounds = *toJpc(&bounds);
+}
+//--------------------------------------------------------------------------------------------------
+JPC_API void
 JPC_Shape_GetSurfaceNormal(const JPC_Shape *in_shape,
                            JPC_SubShapeID in_sub_shape_id,
                            const float in_point[3],
@@ -1985,6 +2408,23 @@ JPC_Shape_GetSupportingFace(const JPC_Shape *in_shape,
     return *reinterpret_cast<JPC_Shape_SupportingFace*>(&face);
 }
 //--------------------------------------------------------------------------------------------------
+JPC_API void
+JPC_Shape_GetSupportingFaceInto(const JPC_Shape *in_shape,
+                                JPC_SubShapeID in_sub_shape_id,
+                                const float in_direction[3],
+                                const float in_scale[3],
+                                const float in_transform[16],
+                                JPC_Shape_SupportingFace *out_face)
+{
+    auto face = JPH::Shape::SupportingFace();
+    toJph(in_shape)->GetSupportingFace(*toJph(&in_sub_shape_id),
+                                       loadVec3(in_direction),
+                                       loadVec3(in_scale),
+                                       loadMat44(in_transform),
+                                       face);
+    *out_face = *reinterpret_cast<JPC_Shape_SupportingFace*>(&face);
+}
+//--------------------------------------------------------------------------------------------------
 JPC_API bool
 JPC_Shape_CastRay(const JPC_Shape *in_shape,
                   const JPC_RayCast *in_ray,
@@ -1999,30 +2439,34 @@ JPC_API void
 JPC_Shape_SaveBinaryState(const JPC_Shape *in_shape, void *in_stream_out)
 {
     assert(in_shape && in_stream_out);
-    return toJph(in_shape)->SaveBinaryState(*static_cast<JPH::StreamOut *>(in_stream_out));
+    StreamOutAdapter stream(in_stream_out);
+    return toJph(in_shape)->SaveBinaryState(stream);
 }
 
 JPC_API void
 JPC_Shape_SaveWithChildren(const JPC_Shape *in_shape, void *in_stream_out, JPC_ShapeToIDMap *io_shape_map, JPC_MaterialToIDMap *io_material_map)
 {
 	assert(in_shape && io_shape_map && io_material_map);
-	return toJph(in_shape)->SaveWithChildren(*static_cast<JPH::StreamOut *>(in_stream_out), *toJph(io_shape_map), *toJph(io_material_map));
+	StreamOutAdapter stream(in_stream_out);
+	return toJph(in_shape)->SaveWithChildren(stream, *toJph(io_shape_map), *toJph(io_material_map));
 }
 
 JPC_API void
 JPC_Shape_SaveWithChildren_All(const JPC_Shape *in_shape, void *in_stream_out)
 {
 	assert(in_shape);
+	StreamOutAdapter stream(in_stream_out);
 	JPH::Shape::ShapeToIDMap tmp_shape_map;
 	JPH::Shape::MaterialToIDMap tmp_material_map;
-	return toJph(in_shape)->SaveWithChildren(*static_cast<JPH::StreamOut *>(in_stream_out), tmp_shape_map, tmp_material_map);
+	return toJph(in_shape)->SaveWithChildren(stream, tmp_shape_map, tmp_material_map);
 }
 
 JPC_API JPC_Shape*
 JPC_Shape_sRestoreFromBinaryState(void *in_stream_in)
 {
 	assert(in_stream_in);
-	const JPH::Result result = JPH::Shape::sRestoreFromBinaryState(*static_cast<JPH::StreamIn *>(in_stream_in));
+	StreamInAdapter stream(in_stream_in);
+	const JPH::Result result = JPH::Shape::sRestoreFromBinaryState(stream);
 	if (result.HasError()) return nullptr;
 	JPH::Shape *shape = const_cast<JPH::Shape*>(result.Get().GetPtr());
 	shape->AddRef();
@@ -2033,7 +2477,8 @@ JPC_API JPC_Shape*
 JPC_Shape_sRestoreWithChildren(void *in_stream_in, JPC_IDToShapeMap *io_shape_map, JPC_IDToMaterialMap *io_material_map)
 {
 	assert(in_stream_in && io_shape_map && io_material_map); 
-	const JPH::Result result = JPH::Shape::sRestoreWithChildren(*static_cast<JPH::StreamIn *>(in_stream_in),
+	StreamInAdapter stream(in_stream_in);
+	const JPH::Result result = JPH::Shape::sRestoreWithChildren(stream,
 																*toJph(io_shape_map),
 																*toJph(io_material_map));
 
@@ -2047,9 +2492,10 @@ JPC_API JPC_Shape*
 JPC_Shape_sRestoreWithChildren_All(void *in_stream_in)
 {
 	assert(in_stream_in); 
+	StreamInAdapter stream(in_stream_in);
 	JPH::Shape::IDToShapeMap tmp_shape_map;
 	JPH::Shape::IDToMaterialMap tmp_material_map;
-	const JPH::Result result = JPH::Shape::sRestoreWithChildren(*static_cast<JPH::StreamIn *>(in_stream_in),
+	const JPH::Result result = JPH::Shape::sRestoreWithChildren(stream,
 																tmp_shape_map,
 																tmp_material_map);
 
@@ -2129,7 +2575,7 @@ JPC_IDToShapeMap_Add(JPC_IDToShapeMap *in_map, JPC_Shape *const *in_shapes, uint
 }
 
 JPC_API void
-JPC_IDToShapeMap_Destroy(JPC_ShapeToIDMap *in_map)
+JPC_IDToShapeMap_Destroy(JPC_IDToShapeMap *in_map)
 {
 	JPH::Free(toJph(in_map));
 }
@@ -2152,7 +2598,7 @@ JPC_IDToMaterialMap_Add(JPC_IDToMaterialMap *in_map, JPC_PhysicsMaterial *const 
 }
 
 JPC_API void
-JPC_IDToMaterialMap_Destroy(JPC_ShapeToIDMap *in_map)
+JPC_IDToMaterialMap_Destroy(JPC_IDToMaterialMap *in_map)
 {
 	JPH::Free(toJph(in_map));
 }
@@ -3014,6 +3460,13 @@ JPC_Body_GetTransformedShape(const JPC_Body *in_body)
 }
 //--------------------------------------------------------------------------------------------------
 JPC_API void
+JPC_Body_GetTransformedShapeInto(const JPC_Body *in_body, JPC_TransformedShape *out_shape)
+{
+    const auto transformed_shape = toJph(in_body)->GetTransformedShape();
+    *out_shape = *toJpc(&transformed_shape);
+}
+//--------------------------------------------------------------------------------------------------
+JPC_API void
 JPC_Body_GetPosition(const JPC_Body *in_body, JPC_Real out_position[3])
 {
     storeRVec3(out_position, toJph(in_body)->GetPosition());
@@ -3461,7 +3914,7 @@ JPC_CharacterVirtual_Create(const JPC_CharacterVirtualSettings *in_settings,
                             const float in_rotation[4],
                             JPC_PhysicsSystem *in_physics_system)
 {
-    auto character = new JPH::CharacterVirtual(
+    auto character = new CharacterVirtualImpl(
         toJph(in_settings), loadRVec3(in_position), JPH::Quat(loadVec4(in_rotation)), toJph(in_physics_system));
     return toJpc(character);
 }
@@ -3469,7 +3922,7 @@ JPC_CharacterVirtual_Create(const JPC_CharacterVirtualSettings *in_settings,
 JPC_API void
 JPC_CharacterVirtual_Destroy(JPC_CharacterVirtual *in_character)
 {
-    delete toJph(in_character);
+    delete static_cast<CharacterVirtualImpl *>(toJph(in_character));
 }
 //--------------------------------------------------------------------------------------------------
 JPC_API void
@@ -3486,15 +3939,19 @@ JPC_CharacterVirtual_Update(JPC_CharacterVirtual *in_character,
     const JPH::ObjectLayerFilter object_layer_filter{};
     const JPH::BodyFilter body_filter{};
     const JPH::ShapeFilter shape_filter{};
+    const BroadPhaseLayerFilterAdapter broad_phase_layer_filter_adapter(in_broad_phase_layer_filter);
+    const ObjectLayerFilterAdapter object_layer_filter_adapter(in_object_layer_filter);
+    const BodyFilterAdapter body_filter_adapter(in_body_filter);
+    const ShapeFilterAdapter shape_filter_adapter(in_shape_filter);
     toJph(in_character)->Update(
         in_delta_time,
         loadVec3(in_gravity),
         in_broad_phase_layer_filter ?
-        *static_cast<const JPH::BroadPhaseLayerFilter *>(in_broad_phase_layer_filter) : broad_phase_layer_filter,
+        static_cast<const JPH::BroadPhaseLayerFilter &>(broad_phase_layer_filter_adapter) : broad_phase_layer_filter,
         in_object_layer_filter ?
-        *static_cast<const JPH::ObjectLayerFilter *>(in_object_layer_filter) : object_layer_filter,
-        in_body_filter ? *static_cast<const JPH::BodyFilter *>(in_body_filter) : body_filter,
-        in_shape_filter ? *static_cast<const JPH::ShapeFilter *>(in_shape_filter) : shape_filter,
+        static_cast<const JPH::ObjectLayerFilter &>(object_layer_filter_adapter) : object_layer_filter,
+        in_body_filter ? static_cast<const JPH::BodyFilter &>(body_filter_adapter) : body_filter,
+        in_shape_filter ? static_cast<const JPH::ShapeFilter &>(shape_filter_adapter) : shape_filter,
         *reinterpret_cast<JPH::TempAllocator *>(in_temp_allocator));
 }
 //--------------------------------------------------------------------------------------------------
@@ -3513,16 +3970,20 @@ JPC_CharacterVirtual_ExtendedUpdate(JPC_CharacterVirtual *in_character,
     const JPH::ObjectLayerFilter object_layer_filter{};
     const JPH::BodyFilter body_filter{};
     const JPH::ShapeFilter shape_filter{};
+    const BroadPhaseLayerFilterAdapter broad_phase_layer_filter_adapter(in_broad_phase_layer_filter);
+    const ObjectLayerFilterAdapter object_layer_filter_adapter(in_object_layer_filter);
+    const BodyFilterAdapter body_filter_adapter(in_body_filter);
+    const ShapeFilterAdapter shape_filter_adapter(in_shape_filter);
     toJph(in_character)->ExtendedUpdate(
         in_delta_time,
         loadVec3(in_gravity),
         *static_cast<const JPH::CharacterVirtual::ExtendedUpdateSettings *>(in_settings),
         in_broad_phase_layer_filter ?
-        *static_cast<const JPH::BroadPhaseLayerFilter *>(in_broad_phase_layer_filter) : broad_phase_layer_filter,
+        static_cast<const JPH::BroadPhaseLayerFilter &>(broad_phase_layer_filter_adapter) : broad_phase_layer_filter,
         in_object_layer_filter ?
-        *static_cast<const JPH::ObjectLayerFilter *>(in_object_layer_filter) : object_layer_filter,
-        in_body_filter ? *static_cast<const JPH::BodyFilter *>(in_body_filter) : body_filter,
-        in_shape_filter ? *static_cast<const JPH::ShapeFilter *>(in_shape_filter) : shape_filter,
+        static_cast<const JPH::ObjectLayerFilter &>(object_layer_filter_adapter) : object_layer_filter,
+        in_body_filter ? static_cast<const JPH::BodyFilter &>(body_filter_adapter) : body_filter,
+        in_shape_filter ? static_cast<const JPH::ShapeFilter &>(shape_filter_adapter) : shape_filter,
         *reinterpret_cast<JPH::TempAllocator *>(in_temp_allocator));
 }
 //--------------------------------------------------------------------------------------------------
@@ -3540,15 +4001,19 @@ JPC_CharacterVirtual_SetShape(JPC_CharacterVirtual *in_character,
     const JPH::ObjectLayerFilter object_layer_filter{};
     const JPH::BodyFilter body_filter{};
     const JPH::ShapeFilter shape_filter{};
+    const BroadPhaseLayerFilterAdapter broad_phase_layer_filter_adapter(in_broad_phase_layer_filter);
+    const ObjectLayerFilterAdapter object_layer_filter_adapter(in_object_layer_filter);
+    const BodyFilterAdapter body_filter_adapter(in_body_filter);
+    const ShapeFilterAdapter shape_filter_adapter(in_shape_filter);
     return toJph(in_character)->SetShape(
         toJph(in_shape),
         in_max_penetration_depth,
         in_broad_phase_layer_filter ?
-        *static_cast<const JPH::BroadPhaseLayerFilter *>(in_broad_phase_layer_filter) : broad_phase_layer_filter,
+        static_cast<const JPH::BroadPhaseLayerFilter &>(broad_phase_layer_filter_adapter) : broad_phase_layer_filter,
         in_object_layer_filter ?
-        *static_cast<const JPH::ObjectLayerFilter *>(in_object_layer_filter) : object_layer_filter,
-        in_body_filter ? *static_cast<const JPH::BodyFilter *>(in_body_filter) : body_filter,
-        in_shape_filter ? *static_cast<const JPH::ShapeFilter *>(in_shape_filter) : shape_filter,
+        static_cast<const JPH::ObjectLayerFilter &>(object_layer_filter_adapter) : object_layer_filter,
+        in_body_filter ? static_cast<const JPH::BodyFilter &>(body_filter_adapter) : body_filter,
+        in_shape_filter ? static_cast<const JPH::ShapeFilter &>(shape_filter_adapter) : shape_filter,
         *reinterpret_cast<JPH::TempAllocator *>(in_temp_allocator));
 }
 //--------------------------------------------------------------------------------------------------
@@ -3584,7 +4049,7 @@ JPC_CharacterVirtual_SetListener(JPC_CharacterVirtual *in_character, void *in_li
         toJph(in_character)->SetListener(nullptr);
         return;
     }
-    toJph(in_character)->SetListener(static_cast<JPH::CharacterContactListener *>(in_listener));
+    static_cast<CharacterVirtualImpl *>(toJph(in_character))->SetCListener(in_listener);
 }
 //--------------------------------------------------------------------------------------------------
 JPC_API void

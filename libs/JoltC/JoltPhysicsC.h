@@ -324,7 +324,7 @@ typedef void *(*JPC_AlignedAllocateFunction)(size_t in_size, size_t in_alignment
 typedef void (*JPC_AlignedFreeFunction)(void *in_block);
 
 typedef void (*JPC_TraceFunction)(const char *inFMT, ...);
-typedef bool (*JPC_AssertFailedFunction)(
+typedef uint8_t (*JPC_AssertFailedFunction)(
     const char* in_expression,
     const char* in_message,
     const char* in_file,
@@ -773,7 +773,7 @@ typedef struct JPC_BodyManager_DrawSettings
     bool sleep_stats;              // = false | Draw stats regarding the sleeping algorithm of each body
 } JPC_BodyManager_DrawSettings;
 
-typedef bool (*JPC_BodyDrawFilterFunc)(const JPC_Body *);
+typedef uint8_t (*JPC_BodyDrawFilterFunc)(const JPC_Body *);
 #endif //JPC_DEBUG_RENDERER
 //--------------------------------------------------------------------------------------------------
 //
@@ -789,7 +789,7 @@ typedef struct JPC_StreamOutVTable
     (*WriteBytes)(void *in_self, const void *in_data, size_t in_num_bytes);
 	
     // Required, *cannot* be NULL.
-    bool
+    uint8_t
     (*IsFailed)(const void *in_self);
 } JPC_StreamOutVTable;
 
@@ -802,11 +802,11 @@ typedef struct JPC_StreamInVTable
     (*ReadBytes)(void *in_self, void *out_data, size_t in_num_bytes);
 
     // Required, *cannot* be NULL.
-    bool
+    uint8_t
     (*IsEOF)(const void *in_self);
 	
     // Required, *cannot* be NULL.
-    bool
+    uint8_t
     (*IsFailed)(const void *in_self);
 } JPC_StreamInVTable;
 
@@ -834,7 +834,7 @@ typedef struct JPC_ObjectVsBroadPhaseLayerFilterVTable
     _JPC_VTABLE_HEADER;
 
     // Required, *cannot* be NULL.
-    bool
+    uint8_t
     (*ShouldCollide)(const void *in_self, JPC_ObjectLayer in_layer1, JPC_BroadPhaseLayer in_layer2);
 } JPC_ObjectVsBroadPhaseLayerFilterVTable;
 
@@ -843,7 +843,7 @@ typedef struct JPC_BroadPhaseLayerFilterVTable
     _JPC_VTABLE_HEADER;
 
     // Required, *cannot* be NULL.
-    bool
+    uint8_t
     (*ShouldCollide)(const void *in_self, JPC_BroadPhaseLayer in_layer);
 } JPC_BroadPhaseLayerFilterVTable;
 
@@ -852,7 +852,7 @@ typedef struct JPC_ObjectLayerPairFilterVTable
     _JPC_VTABLE_HEADER;
 
     // Required, *cannot* be NULL.
-    bool
+    uint8_t
     (*ShouldCollide)(const void *in_self, JPC_ObjectLayer in_layer1, JPC_ObjectLayer in_layer2);
 } JPC_ObjectLayerPairFilterVTable;
 
@@ -861,7 +861,7 @@ typedef struct JPC_ObjectLayerFilterVTable
     _JPC_VTABLE_HEADER;
 
     // Required, *cannot* be NULL.
-    bool
+    uint8_t
     (*ShouldCollide)(const void *in_self, JPC_ObjectLayer in_layer);
 } JPC_ObjectLayerFilterVTable;
 
@@ -883,11 +883,11 @@ typedef struct JPC_BodyFilterVTable
     _JPC_VTABLE_HEADER;
 
     // Required, *cannot* be NULL.
-    bool
+    uint8_t
     (*ShouldCollide)(const void *in_self, const JPC_BodyID *in_body_id);
 
     // Required, *cannot* be NULL.
-    bool
+    uint8_t
     (*ShouldCollideLocked)(const void *in_self, const JPC_Body *in_body);
 } JPC_BodyFilterVTable;
 
@@ -896,19 +896,18 @@ typedef struct JPC_ShapeFilterVTable
     _JPC_VTABLE_HEADER;
 
     // Required, *cannot* be NULL.
-    bool
-    (*ShouldCollide)(const void *in_self, const JPC_Shape *in_shape, const JPC_SubShapeID *in_sub_shape_id);
+    uint8_t
+    (*ShouldCollide)(const void *in_self, const JPC_Shape *in_shape, const JPC_SubShapeID *in_sub_shape_id,
+                     const JPC_BodyID *in_receiving_body_id);
 
     // Required, *cannot* be NULL.
-    bool
+    uint8_t
     (*PairShouldCollide)(const void *in_self,
                          const JPC_Shape *in_shape1,
                          const JPC_SubShapeID *in_sub_shape_id1,
                          const JPC_Shape *in_shape2,
-                         const JPC_SubShapeID *in_sub_shape_id2);
-
-    // Set by the collision detection functions to the body ID of the "receiving" body before ShouldCollide is called.
-    uint32_t bodyId2;
+                         const JPC_SubShapeID *in_sub_shape_id2,
+                         const JPC_BodyID *in_receiving_body_id);
 } JPC_ShapeFilterVTable;
 
 // NOTE: Needs to be kept in sync with JPH::PhysicsStepListenerContext
@@ -943,14 +942,14 @@ typedef struct JPC_CharacterContactListenerVTable
                             const float io_angular_velocity[3]);
 
     // Required, *cannot* be NULL.
-    bool
+    uint8_t
     (*OnContactValidate)(void *in_self,
                          const JPC_CharacterVirtual *in_character,
-                         const JPC_Body *in_body2,
+                         const JPC_BodyID *in_body_id2,
                          const JPC_SubShapeID *sub_shape_id);
 
     // Required, *cannot* be NULL.
-    bool
+    uint8_t
     (*OnCharacterContactValidate)(void *in_self,
                                   const JPC_CharacterVirtual *in_character,
                                   const JPC_CharacterVirtual *in_other_character,
@@ -960,7 +959,7 @@ typedef struct JPC_CharacterContactListenerVTable
     void
     (*OnContactAdded)(void *in_self,
                       const JPC_CharacterVirtual *in_character,
-                      const JPC_Body *in_body2,
+                      const JPC_BodyID *in_body_id2,
                       const JPC_SubShapeID *sub_shape_id,
                       const JPC_Real contact_position[3],
                       const float contact_normal[3],
@@ -970,7 +969,7 @@ typedef struct JPC_CharacterContactListenerVTable
     void
     (*OnContactPersisted)(void *in_self,
                           const JPC_CharacterVirtual *in_character,
-                          const JPC_Body *in_body2,
+                          const JPC_BodyID *in_body_id2,
                           const JPC_SubShapeID *sub_shape_id,
                           const JPC_Real contact_position[3],
                           const float contact_normal[3],
@@ -980,7 +979,7 @@ typedef struct JPC_CharacterContactListenerVTable
     void
     (*OnContactRemoved)(void *in_self,
                         const JPC_CharacterVirtual *in_character,
-                        const JPC_Body *in_body2,
+                        const JPC_BodyID *in_body_id2,
                         const JPC_SubShapeID *sub_shape_id);
 
     // Required, *cannot* be NULL.
@@ -1007,14 +1006,14 @@ typedef struct JPC_CharacterContactListenerVTable
     void
     (*OnCharacterContactRemoved)(void *in_self,
                                  const JPC_CharacterVirtual *in_character,
-                                 const JPC_CharacterVirtual *in_other_character,
+                                 const JPC_CharacterID *in_other_character_id,
                                  const JPC_SubShapeID *sub_shape_id);
 
     // Required, *cannot* be NULL.
     void
     (*OnContactSolve)(void *in_self,
                       const JPC_CharacterVirtual *in_character,
-                      const JPC_Body *in_body2,
+                      const JPC_BodyID *in_body_id2,
                       const JPC_SubShapeID *sub_shape_id,
                       const JPC_Real contact_position[3],
                       const float contact_normal[3],
@@ -1830,6 +1829,9 @@ JPC_Shape_GetCenterOfMass(const JPC_Shape *in_shape, float out_position[3]);
 
 JPC_API JPC_AABox
 JPC_Shape_GetLocalBounds(const JPC_Shape *in_shape);
+JPC_API void
+JPC_Shape_GetLocalBoundsInto(const JPC_Shape *in_shape, JPC_AABox *out_bounds);
+
 
 JPC_API void
 JPC_Shape_GetSurfaceNormal(const JPC_Shape *in_shape,
@@ -1843,6 +1845,14 @@ JPC_Shape_GetSupportingFace(const JPC_Shape *in_shape,
                             const float in_direction[3],
                             const float in_scale[3],
                             const float in_transform[16]);
+JPC_API void
+JPC_Shape_GetSupportingFaceInto(const JPC_Shape *in_shape,
+                                JPC_SubShapeID in_sub_shape_id,
+                                const float in_direction[3],
+                                const float in_scale[3],
+                                const float in_transform[16],
+                                JPC_Shape_SupportingFace *out_face);
+
 
 JPC_API bool
 JPC_Shape_CastRay(const JPC_Shape *in_shape,
@@ -1902,7 +1912,7 @@ JPC_API void
 JPC_IDToShapeMap_Add(JPC_IDToShapeMap *in_map, JPC_Shape *const *in_shapes, uint32_t in_num_shapes);
 
 JPC_API void
-JPC_IDToShapeMap_Destroy(JPC_ShapeToIDMap *in_map);
+JPC_IDToShapeMap_Destroy(JPC_IDToShapeMap *in_map);
 
 JPC_API JPC_IDToMaterialMap*
 JPC_IDToMaterialMap_Create();
@@ -2355,6 +2365,9 @@ JPC_Body_GetShape(const JPC_Body *in_body);
 
 JPC_API JPC_TransformedShape
 JPC_Body_GetTransformedShape(const JPC_Body *in_body);
+JPC_API void
+JPC_Body_GetTransformedShapeInto(const JPC_Body *in_body, JPC_TransformedShape *out_shape);
+
 
 JPC_API void
 JPC_Body_GetPosition(const JPC_Body *in_body, JPC_Real out_position[3]);

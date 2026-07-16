@@ -16,6 +16,10 @@ comptime {
 }
 
 pub const rvec_align = if (Real == f64) 32 else 16;
+// These mirror the ABI of the compiled Jolt library. Zig 0.16's C translator
+// incorrectly caps these alignas fields at 8 on Windows (Vexu/arocc#1058).
+const c_vec_align = 16;
+const c_rvec_align = rvec_align;
 
 pub const flt_epsilon = c.JPC_FLT_EPSILON;
 
@@ -174,7 +178,7 @@ pub const StreamOut = extern struct {
     const VTable = extern struct {
         __header: VTableHeader = .{},
         writeBytes: *const fn (self: *StreamOut, data: [*]const u8, num_bytes: usize) callconv(.c) void,
-        isFailed: *const fn (self: *StreamOut) callconv(.c) bool,
+        isFailed: *const fn (self: *StreamOut) callconv(.c) u8,
     };
 
     pub fn init(comptime T: type) StreamOut {
@@ -186,7 +190,7 @@ pub const StreamOut = extern struct {
     }
 
     pub fn isFailed(self: *StreamOut) bool {
-        return self.__v.isFailed(self);
+        return self.__v.isFailed(self) != 0;
     }
 
     comptime {
@@ -210,9 +214,9 @@ pub const WriterStreamOut = extern struct {
         };
     }
 
-    pub fn isFailed(stream_out: *StreamOut) callconv(.c) bool {
+    pub fn isFailed(stream_out: *StreamOut) callconv(.c) u8 {
         const self: *WriterStreamOut = @alignCast(@fieldParentPtr("stream_out", stream_out));
-        return self.failed;
+        return @intFromBool(self.failed);
     }
 };
 
@@ -222,8 +226,8 @@ pub const StreamIn = extern struct {
     pub const VTable = extern struct {
         __header: VTableHeader = .{},
         readBytes: *const fn (self: *StreamIn, data: [*]u8, num_bytes: usize) callconv(.c) void,
-        isEof: *const fn (self: *StreamIn) callconv(.c) bool,
-        isFailed: *const fn (self: *StreamIn) callconv(.c) bool,
+        isEof: *const fn (self: *StreamIn) callconv(.c) u8,
+        isFailed: *const fn (self: *StreamIn) callconv(.c) u8,
     };
 
     pub fn init(comptime T: type) StreamIn {
@@ -253,14 +257,14 @@ pub const ReaderStreamIn = extern struct {
         };
     }
 
-    pub fn isEof(stream_in: *StreamIn) callconv(.c) bool {
+    pub fn isEof(stream_in: *StreamIn) callconv(.c) u8 {
         const self: *@This() = @alignCast(@fieldParentPtr("stream_in", stream_in));
-        return self.eof;
+        return @intFromBool(self.eof);
     }
 
-    pub fn isFailed(stream_in: *StreamIn) callconv(.c) bool {
+    pub fn isFailed(stream_in: *StreamIn) callconv(.c) u8 {
         const self: *@This() = @alignCast(@fieldParentPtr("stream_in", stream_in));
-        return self.failed;
+        return @intFromBool(self.failed);
     }
 };
 
@@ -309,7 +313,7 @@ pub const ObjectVsBroadPhaseLayerFilter = extern struct {
             self: *const ObjectVsBroadPhaseLayerFilter,
             layer1: ObjectLayer,
             layer2: BroadPhaseLayer,
-        ) callconv(.c) bool,
+        ) callconv(.c) u8,
     };
 
     comptime {
@@ -333,7 +337,7 @@ pub const BroadPhaseLayerFilter = extern struct {
         shouldCollide: *const fn (
             self: *const BroadPhaseLayerFilter,
             layer: BroadPhaseLayer,
-        ) callconv(.c) bool,
+        ) callconv(.c) u8,
     };
 
     comptime {
@@ -353,7 +357,7 @@ pub const ObjectLayerPairFilter = extern struct {
 
     pub const VTable = extern struct {
         __header: VTableHeader = .{},
-        shouldCollide: *const fn (self: *const ObjectLayerPairFilter, ObjectLayer, ObjectLayer) callconv(.c) bool,
+        shouldCollide: *const fn (self: *const ObjectLayerPairFilter, ObjectLayer, ObjectLayer) callconv(.c) u8,
     };
 
     comptime {
@@ -373,7 +377,7 @@ pub const ObjectLayerFilter = extern struct {
 
     pub const VTable = extern struct {
         __header: VTableHeader = .{},
-        shouldCollide: *const fn (self: *const ObjectLayerFilter, ObjectLayer) callconv(.c) bool,
+        shouldCollide: *const fn (self: *const ObjectLayerFilter, ObjectLayer) callconv(.c) u8,
     };
 
     comptime {
@@ -456,19 +460,19 @@ pub const CharacterContactListener = extern struct {
         onContactValidate: *const fn (
             self: *CharacterContactListener,
             character: *const CharacterVirtual,
-            body: *const Body,
+            body_id: *const BodyId,
             sub_shape_id: *const SubShapeId,
-        ) callconv(.c) bool,
+        ) callconv(.c) u8,
         onCharacterContactValidate: *const fn (
             self: *CharacterContactListener,
             character: *const CharacterVirtual,
             other_character: *const CharacterVirtual,
             sub_shape_id: *const SubShapeId,
-        ) callconv(.c) bool,
+        ) callconv(.c) u8,
         onContactAdded: *const fn (
             self: *CharacterContactListener,
             character: *const CharacterVirtual,
-            body: *const Body,
+            body_id: *const BodyId,
             sub_shape_id: *const SubShapeId,
             contact_position: *const [3]Real,
             contact_normal: *const [3]f32,
@@ -477,7 +481,7 @@ pub const CharacterContactListener = extern struct {
         onContactPersisted: *const fn (
             self: *CharacterContactListener,
             character: *const CharacterVirtual,
-            body: *const Body,
+            body_id: *const BodyId,
             sub_shape_id: *const SubShapeId,
             contact_position: *const [3]Real,
             contact_normal: *const [3]f32,
@@ -486,7 +490,7 @@ pub const CharacterContactListener = extern struct {
         onContactRemoved: *const fn (
             self: *CharacterContactListener,
             character: *const CharacterVirtual,
-            body: *const Body,
+            body_id: *const BodyId,
             sub_shape_id: *const SubShapeId,
         ) callconv(.c) void,
         onCharacterContactAdded: *const fn (
@@ -510,13 +514,13 @@ pub const CharacterContactListener = extern struct {
         onCharacterContactRemoved: *const fn (
             self: *CharacterContactListener,
             character: *const CharacterVirtual,
-            other_character: *const CharacterVirtual,
+            other_character_id: *const CharacterId,
             sub_shape_id: *const SubShapeId,
         ) callconv(.c) void,
         onContactSolve: *const fn (
             self: *CharacterContactListener,
             character: *const CharacterVirtual,
-            body: *const Body,
+            body_id: *const BodyId,
             sub_shape_id: *const SubShapeId,
             contact_position: *const [3]Real,
             contact_normal: *const [3]f32,
@@ -602,8 +606,8 @@ pub const BodyFilter = extern struct {
 
     pub const VTable = extern struct {
         __header: VTableHeader = .{},
-        shouldCollide: *const fn (self: *const BodyFilter, body_id: *const BodyId) callconv(.c) bool,
-        shouldCollideLocked: *const fn (self: *const BodyFilter, body: *const Body) callconv(.c) bool,
+        shouldCollide: *const fn (self: *const BodyFilter, body_id: *const BodyId) callconv(.c) u8,
+        shouldCollideLocked: *const fn (self: *const BodyFilter, body: *const Body) callconv(.c) u8,
     };
 
     comptime {
@@ -628,21 +632,22 @@ pub const ShapeFilter = extern struct {
             self: *const ShapeFilter,
             shape: *const Shape,
             sub_shape_id: *const SubShapeId,
-        ) callconv(.c) bool,
+            receiving_body_id: *const BodyId,
+        ) callconv(.c) u8,
         pairShouldCollide: *const fn (
             self: *const ShapeFilter,
             shape1: *const Shape,
             sub_shape_id1: *const SubShapeId,
             shape2: *const Shape,
             sub_shape_id2: *const SubShapeId,
-        ) callconv(.c) bool,
-        receiving_body_id: BodyId = .invalid, // set by jolt before each call to either of the functions above
+            receiving_body_id: *const BodyId,
+        ) callconv(.c) u8,
     };
 
     comptime {
         assert(@sizeOf(VTable) == @sizeOf(c.JPC_ShapeFilterVTable));
         assert(@offsetOf(VTable, "shouldCollide") == @offsetOf(c.JPC_ShapeFilterVTable, "ShouldCollide"));
-        assert(@offsetOf(VTable, "receiving_body_id") == @offsetOf(c.JPC_ShapeFilterVTable, "bodyId2"));
+        assert(@offsetOf(VTable, "pairShouldCollide") == @offsetOf(c.JPC_ShapeFilterVTable, "PairShouldCollide"));
     }
 };
 
@@ -657,8 +662,8 @@ pub const ContactSettings = extern struct {
 
     is_sensor: bool,
 
-    relative_linear_surface_velocity: [4]f32 align(16), // 4th element is ignored
-    relative_angular_surface_velocity: [4]f32 align(16), // 4th element is ignored
+    relative_linear_surface_velocity: [4]f32 align(c_vec_align), // 4th element is ignored
+    relative_angular_surface_velocity: [4]f32 align(c_vec_align), // 4th element is ignored
 
     comptime {
         assert(@sizeOf(ContactSettings) == @sizeOf(c.JPC_ContactSettings));
@@ -675,11 +680,13 @@ pub const ContactSettings = extern struct {
 
 pub const MassProperties = extern struct {
     mass: f32 = 0.0,
-    inertia: [16]f32 align(16) = @splat(0),
+    inertia: [16]f32 align(c_vec_align) = @splat(0),
 
     comptime {
-        assert(@sizeOf(MassProperties) == @sizeOf(c.JPC_MassProperties));
-        assert(@offsetOf(MassProperties, "inertia") == @offsetOf(c.JPC_MassProperties, "inertia"));
+        if (builtin.os.tag != .windows) {
+            assert(@sizeOf(MassProperties) == @sizeOf(c.JPC_MassProperties));
+            assert(@offsetOf(MassProperties, "inertia") == @offsetOf(c.JPC_MassProperties, "inertia"));
+        }
     }
 };
 
@@ -710,47 +717,51 @@ pub const SubShapeIDCreator = extern struct {
 };
 
 pub const CollideShapeResult = extern struct {
-    shape1_contact_point: [4]f32 align(16), // 4th element is ignored; world space
-    shape2_contact_point: [4]f32 align(16), // 4th element is ignored; world space
-    penetration_axis: [4]f32 align(16), // 4th element is ignored; world space
+    shape1_contact_point: [4]f32 align(c_vec_align), // 4th element is ignored; world space
+    shape2_contact_point: [4]f32 align(c_vec_align), // 4th element is ignored; world space
+    penetration_axis: [4]f32 align(c_vec_align), // 4th element is ignored; world space
     penetration_depth: f32,
     shape1_sub_shape_id: SubShapeId,
     shape2_sub_shape_id: SubShapeId,
     body2_id: BodyId,
     shape1_face: extern struct {
-        num_points: u32 align(16),
-        points: [32][4]f32 align(16), // 4th element is ignored; world space
+        num_points: u32 align(c_vec_align),
+        points: [32][4]f32 align(c_vec_align), // 4th element is ignored; world space
     },
     shape2_face: extern struct {
-        num_points: u32 align(16),
-        points: [32][4]f32 align(16), // 4th element is ignored; world space
+        num_points: u32 align(c_vec_align),
+        points: [32][4]f32 align(c_vec_align), // 4th element is ignored; world space
     },
 
     comptime {
-        assert(@sizeOf(CollideShapeResult) == @sizeOf(c.JPC_CollideShapeResult));
-        assert(@offsetOf(CollideShapeResult, "shape2_face") == @offsetOf(c.JPC_CollideShapeResult, "shape2_face"));
+        if (builtin.os.tag != .windows) {
+            assert(@sizeOf(CollideShapeResult) == @sizeOf(c.JPC_CollideShapeResult));
+            assert(@offsetOf(CollideShapeResult, "shape2_face") == @offsetOf(c.JPC_CollideShapeResult, "shape2_face"));
+        }
     }
 };
 
 pub const ContactManifold = extern struct {
-    base_offset: [4]Real align(rvec_align), // 4th element is ignored; world space
-    normal: [4]f32 align(16), // 4th element is ignored; world space
+    base_offset: [4]Real align(c_rvec_align), // 4th element is ignored; world space
+    normal: [4]f32 align(c_vec_align), // 4th element is ignored; world space
     penetration_depth: f32,
     shape1_sub_shape_id: SubShapeId,
     shape2_sub_shape_id: SubShapeId,
     shape1_relative_contact: extern struct {
-        num_points: u32 align(16),
-        points: [64][4]f32 align(16), // 4th element is ignored; world space
+        num_points: u32 align(c_vec_align),
+        points: [64][4]f32 align(c_vec_align), // 4th element is ignored; world space
     },
     shape2_relative_contact: extern struct {
-        num_points: u32 align(16),
-        points: [64][4]f32 align(16), // 4th element is ignored; world space
+        num_points: u32 align(c_vec_align),
+        points: [64][4]f32 align(c_vec_align), // 4th element is ignored; world space
     },
 
     comptime {
-        assert(@sizeOf(ContactManifold) == @sizeOf(c.JPC_ContactManifold));
-        assert(@offsetOf(ContactManifold, "shape2_relative_contact") ==
-            @offsetOf(c.JPC_ContactManifold, "shape2_relative_contact"));
+        if (builtin.os.tag != .windows) {
+            assert(@sizeOf(ContactManifold) == @sizeOf(c.JPC_ContactManifold));
+            assert(@offsetOf(ContactManifold, "shape2_relative_contact") ==
+                @offsetOf(c.JPC_ContactManifold, "shape2_relative_contact"));
+        }
     }
 };
 
@@ -820,10 +831,10 @@ pub const CharacterGroundState = enum(c.JPC_CharacterGroundState) {
 };
 
 pub const BodyCreationSettings = extern struct {
-    position: [4]Real align(rvec_align) = .{ 0, 0, 0, 0 }, // 4th element is ignored
-    rotation: [4]f32 align(16) = .{ 0, 0, 0, 1 },
-    linear_velocity: [4]f32 align(16) = .{ 0, 0, 0, 0 }, // 4th element is ignored
-    angular_velocity: [4]f32 align(16) = .{ 0, 0, 0, 0 }, // 4th element is ignored
+    position: [4]Real align(c_rvec_align) = .{ 0, 0, 0, 0 }, // 4th element is ignored
+    rotation: [4]f32 align(c_vec_align) = .{ 0, 0, 0, 1 },
+    linear_velocity: [4]f32 align(c_vec_align) = .{ 0, 0, 0, 0 }, // 4th element is ignored
+    angular_velocity: [4]f32 align(c_vec_align) = .{ 0, 0, 0, 0 }, // 4th element is ignored
     user_data: u64 = 0,
     object_layer: ObjectLayer = 0,
     collision_group: CollisionGroup = .{},
@@ -853,14 +864,14 @@ pub const BodyCreationSettings = extern struct {
     shape: ?*const Shape = null,
 
     comptime {
-        assert(@sizeOf(BodyCreationSettings) == @sizeOf(c.JPC_BodyCreationSettings));
+        if (builtin.os.tag != .windows)
+            assert(@sizeOf(BodyCreationSettings) == @sizeOf(c.JPC_BodyCreationSettings));
         assert(@offsetOf(BodyCreationSettings, "is_sensor") == @offsetOf(c.JPC_BodyCreationSettings, "is_sensor"));
-        assert(@offsetOf(BodyCreationSettings, "shape") == @offsetOf(c.JPC_BodyCreationSettings, "shape"));
+        if (builtin.os.tag != .windows)
+            assert(@offsetOf(BodyCreationSettings, "shape") == @offsetOf(c.JPC_BodyCreationSettings, "shape"));
         assert(@offsetOf(BodyCreationSettings, "user_data") == @offsetOf(c.JPC_BodyCreationSettings, "user_data"));
         assert(@offsetOf(BodyCreationSettings, "motion_quality") ==
             @offsetOf(c.JPC_BodyCreationSettings, "motion_quality"));
-        assert(@offsetOf(BodyCreationSettings, "shape") ==
-            @offsetOf(c.JPC_BodyCreationSettings, "shape"));
     }
 };
 
@@ -871,8 +882,8 @@ pub const CharacterContactSettings = extern struct {
 
 pub const CharacterBaseSettings = extern struct {
     __header: RefTargetHeader(16),
-    up: [4]f32 align(16), // 4th element is ignored
-    supporting_volume: [4]f32 align(16), // JPH::Plane - 4th element is used
+    up: [4]f32 align(c_vec_align), // 4th element is ignored
+    supporting_volume: [4]f32 align(c_vec_align), // JPH::Plane - 4th element is used
     max_slope_angle: f32,
     enhanced_internal_edge_removal: bool,
     shape: *Shape, // must provide valid shape (such as the typical capsule)
@@ -905,7 +916,8 @@ pub const CharacterSettings = extern struct {
     allowed_DOFs: AllowedDOFs,
 
     comptime {
-        assert(@sizeOf(CharacterSettings) == @sizeOf(c.JPC_CharacterSettings));
+        if (builtin.os.tag != .windows)
+            assert(@sizeOf(CharacterSettings) == @sizeOf(c.JPC_CharacterSettings));
         assert(@offsetOf(CharacterSettings, "base") == @offsetOf(c.JPC_CharacterSettings, "base"));
         assert(@offsetOf(CharacterSettings, "layer") == @offsetOf(c.JPC_CharacterSettings, "layer"));
         assert(@offsetOf(CharacterSettings, "friction") == @offsetOf(c.JPC_CharacterSettings, "friction"));
@@ -916,7 +928,7 @@ pub const CharacterVirtualSettings = extern struct {
     pub fn create() !*CharacterVirtualSettings {
         const settings = c.JPC_CharacterVirtualSettings_Create();
         if (settings == null) return error.FailedToCreateCharacterVirtualSettings;
-        return @as(*CharacterVirtualSettings, @ptrCast(settings));
+        return @as(*CharacterVirtualSettings, @ptrCast(@alignCast(settings)));
     }
     pub fn release(settings: *CharacterVirtualSettings) void {
         c.JPC_CharacterVirtualSettings_Release(@as(*c.JPC_CharacterVirtualSettings, @ptrCast(settings)));
@@ -926,7 +938,7 @@ pub const CharacterVirtualSettings = extern struct {
     id: CharacterId,
     mass: f32,
     max_strength: f32,
-    shape_offset: [4]f32 align(16), // 4th element is ignored
+    shape_offset: [4]f32 align(c_vec_align), // 4th element is ignored
     back_face_mode: BackFaceMode,
     predictive_contact_distance: f32,
     max_collision_iterations: u32,
@@ -942,7 +954,8 @@ pub const CharacterVirtualSettings = extern struct {
     inner_body_layer: ObjectLayer,
 
     comptime {
-        assert(@sizeOf(CharacterVirtualSettings) == @sizeOf(c.JPC_CharacterVirtualSettings));
+        if (builtin.os.tag != .windows)
+            assert(@sizeOf(CharacterVirtualSettings) == @sizeOf(c.JPC_CharacterVirtualSettings));
         assert(@offsetOf(CharacterVirtualSettings, "base") == @offsetOf(c.JPC_CharacterVirtualSettings, "base"));
         assert(@offsetOf(CharacterVirtualSettings, "mass") == @offsetOf(c.JPC_CharacterVirtualSettings, "mass"));
         assert(@offsetOf(CharacterVirtualSettings, "max_num_hits") ==
@@ -953,8 +966,8 @@ pub const CharacterVirtualSettings = extern struct {
 };
 
 pub const RayCast = extern struct {
-    origin: [4]f32 align(16), // 4th element is ignored
-    direction: [4]f32 align(16), // 4th element is ignored
+    origin: [4]f32 align(c_vec_align), // 4th element is ignored
+    direction: [4]f32 align(c_vec_align), // 4th element is ignored
 
     pub fn getPointOnRay(self: RayCast, fraction: f32) [3]f32 {
         return .{
@@ -972,8 +985,8 @@ pub const RayCast = extern struct {
 };
 
 pub const RRayCast = extern struct {
-    origin: [4]Real align(rvec_align), // 4th element is ignored
-    direction: [4]f32 align(16), // 4th element is ignored
+    origin: [4]Real align(c_rvec_align), // 4th element is ignored
+    direction: [4]f32 align(c_vec_align), // 4th element is ignored
 
     pub fn getPointOnRay(self: RRayCast, fraction: f32) [3]Real {
         return .{
@@ -984,9 +997,11 @@ pub const RRayCast = extern struct {
     }
 
     comptime {
-        assert(@sizeOf(RRayCast) == @sizeOf(c.JPC_RRayCast));
-        assert(@offsetOf(RRayCast, "origin") == @offsetOf(c.JPC_RRayCast, "origin"));
-        assert(@offsetOf(RRayCast, "direction") == @offsetOf(c.JPC_RRayCast, "direction"));
+        if (builtin.os.tag != .windows) {
+            assert(@sizeOf(RRayCast) == @sizeOf(c.JPC_RRayCast));
+            assert(@offsetOf(RRayCast, "origin") == @offsetOf(c.JPC_RRayCast, "origin"));
+            assert(@offsetOf(RRayCast, "direction") == @offsetOf(c.JPC_RRayCast, "direction"));
+        }
     }
 };
 
@@ -1032,8 +1047,8 @@ pub const RayCastSettings = extern struct {
 };
 
 pub const AABox = extern struct {
-    min: [4]f32 align(16), // 4th element is ignored
-    max: [4]f32 align(16), // 4th element is ignored
+    min: [4]f32 align(c_vec_align), // 4th element is ignored
+    max: [4]f32 align(c_vec_align), // 4th element is ignored
 
     comptime {
         assert(@sizeOf(AABox) == @sizeOf(c.JPC_AABox));
@@ -1043,15 +1058,17 @@ pub const AABox = extern struct {
 };
 
 pub const RMatrix = extern struct {
-    column_0: [4]f32 align(16),
-    column_1: [4]f32 align(16),
-    column_2: [4]f32 align(16),
-    column_3: [4]Real align(rvec_align),
+    column_0: [4]f32 align(c_vec_align),
+    column_1: [4]f32 align(c_vec_align),
+    column_2: [4]f32 align(c_vec_align),
+    column_3: [4]Real align(c_rvec_align),
 
     comptime {
-        assert(@sizeOf(RMatrix) == @sizeOf(c.JPC_RMatrix));
-        assert(@offsetOf(RMatrix, "column_1") == @offsetOf(c.JPC_RMatrix, "column_1"));
-        assert(@offsetOf(RMatrix, "column_3") == @offsetOf(c.JPC_RMatrix, "column_3"));
+        if (builtin.os.tag != .windows) {
+            assert(@sizeOf(RMatrix) == @sizeOf(c.JPC_RMatrix));
+            assert(@offsetOf(RMatrix, "column_1") == @offsetOf(c.JPC_RMatrix, "column_1"));
+            assert(@offsetOf(RMatrix, "column_3") == @offsetOf(c.JPC_RMatrix, "column_3"));
+        }
     }
 };
 
@@ -1202,7 +1219,7 @@ pub const DebugRenderer = if (!debug_renderer_enabled) extern struct {} else ext
     };
     // zig fmt: on
 
-    pub const BodyDrawFilterFunc = *const fn (*const Body) callconv(.c) bool;
+    pub const BodyDrawFilterFunc = *const fn (*const Body) callconv(.c) u8;
     pub const BodyDrawFilter = opaque {};
 
     pub const TriangleBatch = opaque {};
@@ -1263,10 +1280,21 @@ const mem_alignment = 16;
 pub const GlobalState = struct {
     mem_allocator: std.mem.Allocator,
     mem_allocations: std.AutoHashMap(usize, SizeAndAlignment),
-    mem_mutex: std.Thread.Mutex = .{},
+    mem_mutex: SpinMutex = .{},
 
     temp_allocator: *TempAllocator,
     job_system: *JobSystem,
+};
+const SpinMutex = struct {
+    inner: std.atomic.Mutex = .unlocked,
+
+    fn lock(self: *SpinMutex) void {
+        while (!self.inner.tryLock()) std.atomic.spinLoopHint();
+    }
+
+    fn unlock(self: *SpinMutex) void {
+        self.inner.unlock();
+    }
 };
 var state: ?GlobalState = null;
 
@@ -1276,7 +1304,7 @@ pub const AssertFailedFunc = *const fn (
     message: ?[*:0]const u8,
     file: ?[*:0]const u8,
     line: u32,
-) callconv(.c) bool;
+) callconv(.c) u8;
 
 pub fn init(allocator: std.mem.Allocator, args: struct {
     temp_allocator_size: u32 = 16 * 1024 * 1024,
@@ -1656,7 +1684,7 @@ pub const BodyInterface = opaque {
         );
         if (body == null)
             return error.FailedToCreateBody;
-        return @as(*Body, @ptrCast(body));
+        return @as(*Body, @ptrCast(@alignCast(body)));
     }
 
     pub fn createBodyWithId(body_iface: *BodyInterface, body_id: BodyId, settings: BodyCreationSettings) !*Body {
@@ -2098,10 +2126,10 @@ pub const NarrowPhaseQuery = opaque {
 //
 //--------------------------------------------------------------------------------------------------
 pub const Body = extern struct {
-    position: [4]Real align(rvec_align), // 4th element is ignored
-    rotation: [4]f32 align(16),
-    bounds_min: [4]f32 align(16), // 4th element is ignored
-    bounds_max: [4]f32 align(16), // 4th element is ignored
+    position: [4]Real align(c_rvec_align), // 4th element is ignored
+    rotation: [4]f32 align(c_vec_align),
+    bounds_min: [4]f32 align(c_vec_align), // 4th element is ignored
+    bounds_max: [4]f32 align(c_vec_align), // 4th element is ignored
 
     shape: *const Shape,
     motion_properties: ?*MotionProperties, // Will be null for static objects
@@ -2316,8 +2344,12 @@ pub const Body = extern struct {
     }
 
     pub fn getTransformedShape(body: *const Body) TransformedShape {
-        const c_result = c.JPC_Body_GetTransformedShape(@as(*const c.JPC_Body, @ptrCast(body)));
-        return @as(*TransformedShape, @constCast(@ptrCast(&c_result))).*;
+        var result: TransformedShape = undefined;
+        c.JPC_Body_GetTransformedShapeInto(
+            @as(*const c.JPC_Body, @ptrCast(body)),
+            @as(*c.JPC_TransformedShape, @ptrCast(&result)),
+        );
+        return result;
     }
 
     pub fn getPosition(body: *const Body) [3]Real {
@@ -2387,7 +2419,7 @@ pub const Body = extern struct {
     pub fn getMotionPropertiesMut(body: *Body) *MotionProperties {
         return @as(
             *MotionProperties,
-            @ptrCast(c.JPC_Body_GetMotionProperties(@as(*c.JPC_Body, @ptrCast(body)))),
+            @ptrCast(@alignCast(c.JPC_Body_GetMotionProperties(@as(*c.JPC_Body, @ptrCast(body))))),
         );
     }
 
@@ -2418,7 +2450,8 @@ pub const Body = extern struct {
     }
 
     comptime {
-        assert(@sizeOf(Body) == @sizeOf(c.JPC_Body));
+        if (builtin.os.tag != .windows)
+            assert(@sizeOf(Body) == @sizeOf(c.JPC_Body));
         assert(@offsetOf(Body, "flags") == @offsetOf(c.JPC_Body, "flags"));
         assert(@offsetOf(Body, "motion_properties") == @offsetOf(c.JPC_Body, "motion_properties"));
         assert(@offsetOf(Body, "object_layer") == @offsetOf(c.JPC_Body, "object_layer"));
@@ -2486,12 +2519,12 @@ pub const Character = opaque {
 //--------------------------------------------------------------------------------------------------
 pub const CharacterVirtual = opaque {
     pub const ExtendedUpdateSettings = extern struct {
-        stick_to_floor_step_down: [4]f32 align(16) = .{ 0, -0.5, 0, 0 }, // 4th element is ignored
-        walk_stairs_step_up: [4]f32 align(16) = .{ 0, 0.4, 0, 0 }, // 4th element is ignored
+        stick_to_floor_step_down: [4]f32 align(c_vec_align) = .{ 0, -0.5, 0, 0 }, // 4th element is ignored
+        walk_stairs_step_up: [4]f32 align(c_vec_align) = .{ 0, 0.4, 0, 0 }, // 4th element is ignored
         walk_stairs_min_step_forward: f32 = 0.02,
         walk_stairs_step_forward_test: f32 = 0.15,
         walk_stairs_cos_angle_forward_contact: f32 = std.math.cos(std.math.degreesToRadians(75.0)),
-        walk_stairs_step_down_extra: [4]f32 align(16) = .{ 0, 0, 0, 0 }, // 4th element is ignored
+        walk_stairs_step_down_extra: [4]f32 align(c_vec_align) = .{ 0, 0, 0, 0 }, // 4th element is ignored
 
         comptime {
             assert(@sizeOf(ExtendedUpdateSettings) == @sizeOf(c.JPC_CharacterVirtual_ExtendedUpdateSettings));
@@ -2665,10 +2698,10 @@ pub const CharacterVirtual = opaque {
 pub const MotionProperties = extern struct {
     pub const inactive_index: u32 = std.math.maxInt(u32);
 
-    linear_velocity: [4]f32 align(16), // 4th element is ignored
-    angular_velocity: [4]f32 align(16), // 4th element is ignored
-    inv_inertia_diagonal: [4]f32 align(16),
-    inertia_rotation: [4]f32 align(16),
+    linear_velocity: [4]f32 align(c_vec_align), // 4th element is ignored
+    angular_velocity: [4]f32 align(c_vec_align), // 4th element is ignored
+    inv_inertia_diagonal: [4]f32 align(c_vec_align),
+    inertia_rotation: [4]f32 align(c_vec_align),
 
     force: [3]f32,
     torque: [3]f32,
@@ -2860,7 +2893,8 @@ pub const MotionProperties = extern struct {
     }
 
     comptime {
-        assert(@sizeOf(MotionProperties) == @sizeOf(c.JPC_MotionProperties));
+        if (builtin.os.tag != .windows)
+            assert(@sizeOf(MotionProperties) == @sizeOf(c.JPC_MotionProperties));
         assert(@offsetOf(MotionProperties, "force") == @offsetOf(c.JPC_MotionProperties, "force"));
         assert(@offsetOf(MotionProperties, "motion_quality") == @offsetOf(c.JPC_MotionProperties, "motion_quality"));
         assert(@offsetOf(MotionProperties, "gravity_factor") == @offsetOf(c.JPC_MotionProperties, "gravity_factor"));
@@ -3472,12 +3506,14 @@ pub const Shape = opaque {
     };
 
     pub const SupportingFace = extern struct {
-        num_points: u32 align(16),
-        points: [32][4]f32 align(16), // 4th element is ignored; world space
+        num_points: u32 align(c_vec_align),
+        points: [32][4]f32 align(c_vec_align), // 4th element is ignored; world space
 
         comptime {
-            assert(@sizeOf(SupportingFace) == @sizeOf(c.JPC_Shape_SupportingFace));
-            assert(@offsetOf(SupportingFace, "points") == @offsetOf(c.JPC_Shape_SupportingFace, "points"));
+            if (builtin.os.tag != .windows) {
+                assert(@sizeOf(SupportingFace) == @sizeOf(c.JPC_Shape_SupportingFace));
+                assert(@offsetOf(SupportingFace, "points") == @offsetOf(c.JPC_Shape_SupportingFace, "points"));
+            }
         }
     };
 
@@ -3540,8 +3576,12 @@ pub const Shape = opaque {
     }
 
     pub fn getLocalBounds(shape: *const Shape) AABox {
-        const aabox = c.JPC_Shape_GetLocalBounds(@ptrCast(shape));
-        return @as(*AABox, @ptrCast(@constCast(&aabox))).*;
+        var result: AABox = undefined;
+        c.JPC_Shape_GetLocalBoundsInto(
+            @ptrCast(shape),
+            @as(*c.JPC_AABox, @ptrCast(&result)),
+        );
+        return result;
     }
 
     pub fn getSurfaceNormal(shape: *const Shape, sub_shape_id: SubShapeId, local_pos: [3]f32) [3]f32 {
@@ -3562,14 +3602,16 @@ pub const Shape = opaque {
         shape_scale: [3]f32,
         com_transform: [16]f32,
     ) SupportingFace {
-        const c_face = c.JPC_Shape_GetSupportingFace(
+        var result: SupportingFace = undefined;
+        c.JPC_Shape_GetSupportingFaceInto(
             @ptrCast(shape),
             sub_shape_id.toJpc(),
             &direction,
             &shape_scale,
             &com_transform,
+            @as(*c.JPC_Shape_SupportingFace, @ptrCast(&result)),
         );
-        return @as(*const SupportingFace, @ptrCast(&c_face)).*;
+        return result;
     }
 
     pub fn castRay(
@@ -3693,8 +3735,8 @@ pub const ConvexHullShape = opaque {
 //
 //--------------------------------------------------------------------------------------------------
 pub const TransformedShape = extern struct {
-    shape_position_com: [4]Real align(rvec_align), // 4th element is ignored
-    shape_rotation: [4]f32 align(16),
+    shape_position_com: [4]Real align(c_rvec_align), // 4th element is ignored
+    shape_rotation: [4]f32 align(c_vec_align),
     shape: *const Shape,
     shape_scale: [3]f32,
     body_id: BodyId,
@@ -3705,7 +3747,8 @@ pub const TransformedShape = extern struct {
     }
 
     comptime {
-        assert(@sizeOf(TransformedShape) == @sizeOf(c.JPC_TransformedShape));
+        if (builtin.os.tag != .windows)
+            assert(@sizeOf(TransformedShape) == @sizeOf(c.JPC_TransformedShape));
         assert(@offsetOf(TransformedShape, "body_id") == @offsetOf(c.JPC_TransformedShape, "body_id"));
         assert(@offsetOf(TransformedShape, "shape") == @offsetOf(c.JPC_TransformedShape, "shape"));
     }
@@ -3960,7 +4003,7 @@ fn zphysicsFree(maybe_ptr: ?*anyopaque) callconv(.c) void {
 const expect = std.testing.expect;
 
 test {
-    std.testing.refAllDeclsRecursive(@This());
+    std.testing.refAllDecls(@This());
 }
 
 extern fn JoltCTest_Basic1() u32;
@@ -3994,11 +4037,8 @@ test "zphysics.BodyCreationSettings" {
     const approxEql = std.math.approxEqAbs;
 
     const bcs0 = BodyCreationSettings{};
-    const bcs1 = blk: {
-        var settings: c.JPC_BodyCreationSettings = undefined;
-        c.JPC_BodyCreationSettings_SetDefault(&settings);
-        break :blk @as(*const BodyCreationSettings, @ptrCast(&settings)).*;
-    };
+    var bcs1: BodyCreationSettings = undefined;
+    c.JPC_BodyCreationSettings_SetDefault(@ptrCast(&bcs1));
 
     try expect(approxEql(Real, bcs0.position[0], bcs1.position[0], 0.0001));
     try expect(approxEql(Real, bcs0.position[1], bcs1.position[1], 0.0001));
@@ -4470,6 +4510,32 @@ test "zphysics.body.basic" {
     const floor_shape = try floor_shape_settings.asShapeSettings().createShape();
     defer floor_shape.release();
 
+    const local_bounds = floor_shape.getLocalBounds();
+    try expect(std.math.approxEqAbs(f32, local_bounds.min[0], -100.0, 0.001));
+    try expect(std.math.approxEqAbs(f32, local_bounds.min[1], -1.0, 0.001));
+    try expect(std.math.approxEqAbs(f32, local_bounds.min[2], -100.0, 0.001));
+    try expect(std.math.approxEqAbs(f32, local_bounds.max[0], 100.0, 0.001));
+    try expect(std.math.approxEqAbs(f32, local_bounds.max[1], 1.0, 0.001));
+    try expect(std.math.approxEqAbs(f32, local_bounds.max[2], 100.0, 0.001));
+
+    const supporting_face = floor_shape.getSupportingFace(
+        .empty,
+        .{ 0, 1, 0 },
+        .{ 1, 1, 1 },
+        .{
+            1, 0, 0, 0,
+            0, 1, 0, 0,
+            0, 0, 1, 0,
+            0, 0, 0, 1,
+        },
+    );
+    try expect(supporting_face.num_points == 4);
+    for (supporting_face.points[0..supporting_face.num_points]) |point| {
+        try expect(std.math.approxEqAbs(f32, @abs(point[0]), 100.0, 0.001));
+        try expect(std.math.approxEqAbs(f32, @abs(point[1]), 1.0, 0.001));
+        try expect(std.math.approxEqAbs(f32, @abs(point[2]), 100.0, 0.001));
+    }
+
     var shape_ray = RayCast{ .origin = .{ 0, 2, 0, 1 }, .direction = .{ 101, -1, 0, 0 } };
     var shape_result = floor_shape.castRay(shape_ray, .{});
     try expect(shape_result.has_hit == false);
@@ -4595,6 +4661,16 @@ test "zphysics.body.basic" {
         const xform = body1.getWorldTransform();
         try expect(xform.rotation[0] == 1.0);
         try expect(xform.position[1] == -1.0);
+
+        const transformed_shape = body1.getTransformedShape();
+        try expect(transformed_shape.shape == floor_shape);
+        try expect(transformed_shape.body_id == body1.id);
+        try expect(transformed_shape.shape_position_com[1] == -1.0);
+        try expect(transformed_shape.shape_scale[0] == 1.0);
+        try expect(transformed_shape.shape_scale[1] == 1.0);
+        try expect(transformed_shape.shape_scale[2] == 1.0);
+        try expect(transformed_shape.collidePointAny(.{ 0.0, -1.0, 0.0 }));
+        try expect(!transformed_shape.collidePointAny(.{ 101.0, -1.0, 0.0 }));
 
         body1.setUserData(12345);
         try expect(body1.getUserData() == 12345);
@@ -4859,12 +4935,12 @@ const test_cb1 = struct {
             _: *const ObjectVsBroadPhaseLayerFilter,
             layer1: ObjectLayer,
             layer2: BroadPhaseLayer,
-        ) callconv(.c) bool {
-            return switch (layer1) {
+        ) callconv(.c) u8 {
+            return @intFromBool(switch (layer1) {
                 object_layers.non_moving => layer2 == broad_phase_layers.moving,
                 object_layers.moving => true,
                 else => unreachable,
-            };
+            });
         }
     };
 
@@ -4875,12 +4951,12 @@ const test_cb1 = struct {
             _: *const ObjectLayerPairFilter,
             object1: ObjectLayer,
             object2: ObjectLayer,
-        ) callconv(.c) bool {
-            return switch (object1) {
+        ) callconv(.c) u8 {
+            return @intFromBool(switch (object1) {
                 object_layers.non_moving => object2 == object_layers.moving,
                 object_layers.moving => true,
                 else => unreachable,
-            };
+            });
         }
     };
 
@@ -4908,8 +4984,8 @@ const test_cb1 = struct {
         prim_head: i32 = -1,
         draw_geometry_count: usize = 0,
 
-        pub fn shouldBodyDraw(_: *const Body) callconv(.c) bool {
-            return true;
+        pub fn shouldBodyDraw(_: *const Body) callconv(.c) u8 {
+            return 1;
         }
 
         fn drawLine(

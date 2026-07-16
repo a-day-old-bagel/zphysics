@@ -298,7 +298,7 @@ MyDebugRenderer_Init(void)
 }
 
 /// This function can be passed to JPC_PhysicsSystem.DrawBodies as the filter, deciding which bodies draw.
-static bool BodyShouldDraw(const JPC_Body *) {
+static uint8_t BodyShouldDraw(const JPC_Body *) {
     return true;
 }
 #endif //JPC_DEBUG_RENDERER
@@ -352,7 +352,7 @@ typedef struct MyObjectFilter
     const JPC_ObjectLayerPairFilterVTable *vtable; // VTable has to be the first field in the struct.
 } MyObjectFilter;
 
-static bool
+static uint8_t
 MyObjectFilter_ShouldCollide(const void *in_self, JPC_ObjectLayer in_object1, JPC_ObjectLayer in_object2)
 {
     switch (in_object1)
@@ -388,7 +388,7 @@ typedef struct MyBroadPhaseFilter
     const JPC_ObjectVsBroadPhaseLayerFilterVTable *vtable; // VTable has to be the first field in the struct.
 } MyBroadPhaseFilter;
 
-static bool
+static uint8_t
 MyBroadPhaseFilter_ShouldCollide(const void *in_self, JPC_ObjectLayer in_layer1, JPC_BroadPhaseLayer in_layer2)
 {
     switch (in_layer1)
@@ -904,7 +904,7 @@ BufferedStreamOutImpl_WriteBytes(void *in_self, const void *in_data, size_t in_n
 	memcpy(self->buffer + start, in_data, in_num_bytes);
 }
 
-static bool
+static uint8_t
 BufferedStreamOutImpl_IsFailed(const void *in_self)
 {
 	const BufferStreamOutImpl* self = (BufferStreamOutImpl*)in_self;
@@ -964,7 +964,7 @@ BufferedStreamInImpl_ReadBytes(void *in_self, void *out_data, size_t in_num_byte
 	}
 }
 
-static bool
+static uint8_t
 BufferedStreamInImpl_IsEOF(const void *in_self)
 {
 	BufferStreamInImpl* self = (BufferStreamInImpl*)in_self;
@@ -974,7 +974,7 @@ BufferedStreamInImpl_IsEOF(const void *in_self)
 	return self->eof;
 }
 
-static bool
+static uint8_t
 BufferedStreamInImpl_IsFailed(const void *in_self)
 {
 #ifdef PRINT_OUTPUT
@@ -1128,8 +1128,8 @@ JoltCTest_Serialization(void)
 			JPC_RotatedTranslatedShape_GetPosition((JPC_RotatedTranslatedShape*)shape, translation_restored);
 			assert(memcmp(translation, translation_restored, 3 * sizeof(float)) == 0);
 
-			JPC_ShapeToIDMap_Destroy(id_to_shape);
-			JPC_MaterialToIDMap_Destroy(id_to_material);
+			JPC_IDToShapeMap_Destroy(id_to_shape);
+			JPC_IDToMaterialMap_Destroy(id_to_material);
 		}
 
 		free(stream_in.buffer);
