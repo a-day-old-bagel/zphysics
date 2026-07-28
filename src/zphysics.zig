@@ -28,6 +28,62 @@ pub const GroupFilter = opaque {};
 pub const BodyLockInterface = opaque {};
 pub const SharedMutex = opaque {};
 
+pub const StateRecorder = opaque {
+    pub fn create() !*StateRecorder {
+        const recorder = c.JPC_StateRecorder_Create();
+        if (recorder == null) return error.FailedToCreateStateRecorder;
+        return @ptrCast(recorder);
+    }
+
+    pub fn destroy(recorder: *StateRecorder) void {
+        c.JPC_StateRecorder_Destroy(@ptrCast(recorder));
+    }
+
+    pub fn clear(recorder: *StateRecorder) void {
+        c.JPC_StateRecorder_Clear(@ptrCast(recorder));
+    }
+
+    pub fn rewind(recorder: *StateRecorder) void {
+        c.JPC_StateRecorder_Rewind(@ptrCast(recorder));
+    }
+
+    pub fn getDataSize(recorder: *StateRecorder) usize {
+        return c.JPC_StateRecorder_GetDataSize(@ptrCast(recorder));
+    }
+
+    pub fn copyData(recorder: *const StateRecorder, destination: []u8) !void {
+        if (!c.JPC_StateRecorder_CopyData(@ptrCast(recorder), destination.ptr, destination.len))
+            return error.StateRecorderSizeMismatch;
+    }
+
+    pub fn isFailed(recorder: *const StateRecorder) bool {
+        return c.JPC_StateRecorder_IsFailed(@ptrCast(recorder));
+    }
+
+    pub fn setValidating(recorder: *StateRecorder, validating: bool) void {
+        c.JPC_StateRecorder_SetValidating(@ptrCast(recorder), validating);
+    }
+
+    pub fn isValidating(recorder: *const StateRecorder) bool {
+        return c.JPC_StateRecorder_IsValidating(@ptrCast(recorder));
+    }
+};
+
+pub const StateRecorderState = packed struct(u8) {
+    global: bool = false,
+    bodies: bool = false,
+    contacts: bool = false,
+    constraints: bool = false,
+    _padding: u4 = 0,
+
+    pub const all: StateRecorderState = .{
+        .global = true,
+        .bodies = true,
+        .contacts = true,
+        .constraints = true,
+    };
+};
+
 pub const BroadPhaseLayer = c.JPC_BroadPhaseLayer;
 pub const ObjectLayer = c.JPC_ObjectLayer;
 
@@ -1396,6 +1452,24 @@ pub const PhysicsSystem = opaque {
         c.JPC_PhysicsSystem_Destroy(@as(*c.JPC_PhysicsSystem, @ptrCast(physics_system)));
     }
 
+    pub fn saveState(
+        physics_system: *const PhysicsSystem,
+        recorder: *StateRecorder,
+        state_to_save: StateRecorderState,
+    ) void {
+        c.JPC_PhysicsSystem_SaveState(
+            @ptrCast(physics_system),
+            @ptrCast(recorder),
+            @bitCast(state_to_save),
+        );
+    }
+
+    pub fn restoreState(physics_system: *PhysicsSystem, recorder: *StateRecorder) !void {
+        if (!c.JPC_PhysicsSystem_RestoreState(@ptrCast(physics_system), @ptrCast(recorder)))
+            return error.FailedToRestorePhysicsState;
+        if (recorder.isFailed()) return error.FailedToReadPhysicsState;
+    }
+
     pub fn getNumBodies(physics_system: *const PhysicsSystem) u32 {
         return c.JPC_PhysicsSystem_GetNumBodies(@as(*const c.JPC_PhysicsSystem, @ptrCast(physics_system)));
     }
@@ -1695,7 +1769,7 @@ pub const BodyInterface = opaque {
         );
         if (body == null)
             return error.FailedToCreateBody;
-        return @as(*Body, @ptrCast(body));
+        return @as(*Body, @ptrCast(@alignCast(body)));
     }
 
     pub fn destroyBody(body_iface: *BodyInterface, body_id: BodyId) void {
@@ -2549,6 +2623,15 @@ pub const CharacterVirtual = opaque {
 
     pub fn destroy(character: *CharacterVirtual) void {
         c.JPC_CharacterVirtual_Destroy(@as(*c.JPC_CharacterVirtual, @ptrCast(character)));
+    }
+
+    pub fn saveState(character: *const CharacterVirtual, recorder: *StateRecorder) void {
+        c.JPC_CharacterVirtual_SaveState(@ptrCast(character), @ptrCast(recorder));
+    }
+
+    pub fn restoreState(character: *CharacterVirtual, recorder: *StateRecorder) !void {
+        c.JPC_CharacterVirtual_RestoreState(@ptrCast(character), @ptrCast(recorder));
+        if (recorder.isFailed()) return error.FailedToReadCharacterState;
     }
 
     pub fn update(

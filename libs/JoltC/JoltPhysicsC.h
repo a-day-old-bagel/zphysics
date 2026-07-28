@@ -362,6 +362,7 @@ typedef struct JPC_FixedConstraintSettings   JPC_FixedConstraintSettings;
 
 typedef struct JPC_PhysicsSystem JPC_PhysicsSystem;
 typedef struct JPC_SharedMutex   JPC_SharedMutex;
+typedef struct JPC_StateRecorder JPC_StateRecorder;
 
 typedef struct JPC_Shape                  JPC_Shape;
 typedef struct JPC_BoxShape               JPC_BoxShape;
@@ -1342,6 +1343,55 @@ JPC_PhysicsSystem_Create(uint32_t in_max_bodies,
                          const void *in_object_layer_pair_filter);
 JPC_API void
 JPC_PhysicsSystem_Destroy(JPC_PhysicsSystem *in_physics_system);
+
+typedef uint8_t JPC_StateRecorderState;
+enum
+{
+    JPC_STATE_RECORDER_STATE_NONE        = 0,
+    JPC_STATE_RECORDER_STATE_GLOBAL      = 1,
+    JPC_STATE_RECORDER_STATE_BODIES      = 2,
+    JPC_STATE_RECORDER_STATE_CONTACTS    = 4,
+    JPC_STATE_RECORDER_STATE_CONSTRAINTS = 8,
+    JPC_STATE_RECORDER_STATE_ALL         = 15,
+};
+
+JPC_API JPC_StateRecorder *
+JPC_StateRecorder_Create();
+
+JPC_API void
+JPC_StateRecorder_Destroy(JPC_StateRecorder *in_recorder);
+
+JPC_API void
+JPC_StateRecorder_Clear(JPC_StateRecorder *in_recorder);
+
+JPC_API void
+JPC_StateRecorder_Rewind(JPC_StateRecorder *in_recorder);
+
+JPC_API size_t
+JPC_StateRecorder_GetDataSize(JPC_StateRecorder *in_recorder);
+
+JPC_API bool
+JPC_StateRecorder_CopyData(const JPC_StateRecorder *in_recorder,
+                           void *out_data,
+                           size_t in_data_size);
+
+JPC_API bool
+JPC_StateRecorder_IsFailed(const JPC_StateRecorder *in_recorder);
+
+JPC_API void
+JPC_StateRecorder_SetValidating(JPC_StateRecorder *in_recorder, bool in_validating);
+
+JPC_API bool
+JPC_StateRecorder_IsValidating(const JPC_StateRecorder *in_recorder);
+
+JPC_API void
+JPC_PhysicsSystem_SaveState(const JPC_PhysicsSystem *in_physics_system,
+                            JPC_StateRecorder *in_recorder,
+                            JPC_StateRecorderState in_state);
+
+JPC_API bool
+JPC_PhysicsSystem_RestoreState(JPC_PhysicsSystem *in_physics_system,
+                               JPC_StateRecorder *in_recorder);
 
 JPC_API void
 JPC_PhysicsSystem_SetBodyActivationListener(JPC_PhysicsSystem *in_physics_system, void *in_listener);
@@ -2489,6 +2539,14 @@ JPC_CharacterVirtual_Create(const JPC_CharacterVirtualSettings *in_settings,
 
 JPC_API void
 JPC_CharacterVirtual_Destroy(JPC_CharacterVirtual *in_character);
+
+JPC_API void
+JPC_CharacterVirtual_SaveState(const JPC_CharacterVirtual *in_character,
+                               JPC_StateRecorder *in_recorder);
+
+JPC_API void
+JPC_CharacterVirtual_RestoreState(JPC_CharacterVirtual *in_character,
+                                  JPC_StateRecorder *in_recorder);
 
 JPC_API void
 JPC_CharacterVirtual_Update(JPC_CharacterVirtual *in_character,

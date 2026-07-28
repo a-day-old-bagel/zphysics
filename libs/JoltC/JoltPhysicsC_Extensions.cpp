@@ -15,6 +15,7 @@
 #include <Jolt/Physics/PhysicsSettings.h>
 #include <Jolt/Physics/PhysicsStepListener.h>
 #include <Jolt/Physics/PhysicsSystem.h>
+#include <Jolt/Physics/StateRecorderImpl.h>
 #include <Jolt/Physics/Collision/CastResult.h>
 #include <Jolt/Physics/Collision/RayCast.h>
 #include <Jolt/Physics/Collision/CollideShape.h>
@@ -33,6 +34,120 @@
 #include <Jolt/Physics/Character/CharacterVirtual.h>
 
 JPH_SUPPRESS_WARNINGS
+//--------------------------------------------------------------------------------------------------
+static_assert(JPC_STATE_RECORDER_STATE_NONE == static_cast<uint8_t>(JPH::EStateRecorderState::None));
+static_assert(JPC_STATE_RECORDER_STATE_GLOBAL == static_cast<uint8_t>(JPH::EStateRecorderState::Global));
+static_assert(JPC_STATE_RECORDER_STATE_BODIES == static_cast<uint8_t>(JPH::EStateRecorderState::Bodies));
+static_assert(JPC_STATE_RECORDER_STATE_CONTACTS == static_cast<uint8_t>(JPH::EStateRecorderState::Contacts));
+static_assert(JPC_STATE_RECORDER_STATE_CONSTRAINTS == static_cast<uint8_t>(JPH::EStateRecorderState::Constraints));
+static_assert(JPC_STATE_RECORDER_STATE_ALL == static_cast<uint8_t>(JPH::EStateRecorderState::All));
+//--------------------------------------------------------------------------------------------------
+static JPH::StateRecorderImpl *
+toStateRecorder(JPC_StateRecorder *in_recorder)
+{
+    assert(in_recorder != nullptr);
+    return reinterpret_cast<JPH::StateRecorderImpl *>(in_recorder);
+}
+
+static const JPH::StateRecorderImpl *
+toStateRecorder(const JPC_StateRecorder *in_recorder)
+{
+    assert(in_recorder != nullptr);
+    return reinterpret_cast<const JPH::StateRecorderImpl *>(in_recorder);
+}
+//--------------------------------------------------------------------------------------------------
+JPC_API JPC_StateRecorder *
+JPC_StateRecorder_Create()
+{
+    return reinterpret_cast<JPC_StateRecorder *>(new JPH::StateRecorderImpl());
+}
+//--------------------------------------------------------------------------------------------------
+JPC_API void
+JPC_StateRecorder_Destroy(JPC_StateRecorder *in_recorder)
+{
+    delete toStateRecorder(in_recorder);
+}
+//--------------------------------------------------------------------------------------------------
+JPC_API void
+JPC_StateRecorder_Clear(JPC_StateRecorder *in_recorder)
+{
+    toStateRecorder(in_recorder)->Clear();
+}
+//--------------------------------------------------------------------------------------------------
+JPC_API void
+JPC_StateRecorder_Rewind(JPC_StateRecorder *in_recorder)
+{
+    toStateRecorder(in_recorder)->Rewind();
+}
+//--------------------------------------------------------------------------------------------------
+JPC_API size_t
+JPC_StateRecorder_GetDataSize(JPC_StateRecorder *in_recorder)
+{
+    return toStateRecorder(in_recorder)->GetDataSize();
+}
+//--------------------------------------------------------------------------------------------------
+JPC_API bool
+JPC_StateRecorder_CopyData(const JPC_StateRecorder *in_recorder,
+                           void *out_data,
+                           size_t in_data_size)
+{
+    assert(out_data != nullptr);
+    const std::string data = toStateRecorder(in_recorder)->GetData();
+    if (data.size() != in_data_size)
+        return false;
+    memcpy(out_data, data.data(), data.size());
+    return true;
+}
+//--------------------------------------------------------------------------------------------------
+JPC_API bool
+JPC_StateRecorder_IsFailed(const JPC_StateRecorder *in_recorder)
+{
+    return toStateRecorder(in_recorder)->IsFailed();
+}
+//--------------------------------------------------------------------------------------------------
+JPC_API void
+JPC_StateRecorder_SetValidating(JPC_StateRecorder *in_recorder, bool in_validating)
+{
+    toStateRecorder(in_recorder)->SetValidating(in_validating);
+}
+//--------------------------------------------------------------------------------------------------
+JPC_API bool
+JPC_StateRecorder_IsValidating(const JPC_StateRecorder *in_recorder)
+{
+    return toStateRecorder(in_recorder)->IsValidating();
+}
+//--------------------------------------------------------------------------------------------------
+JPC_API void
+JPC_PhysicsSystem_SaveState(const JPC_PhysicsSystem *in_physics_system,
+                            JPC_StateRecorder *in_recorder,
+                            JPC_StateRecorderState in_state)
+{
+    reinterpret_cast<const JPH::PhysicsSystem *>(in_physics_system)->SaveState(
+        *toStateRecorder(in_recorder),
+        static_cast<JPH::EStateRecorderState>(in_state));
+}
+//--------------------------------------------------------------------------------------------------
+JPC_API bool
+JPC_PhysicsSystem_RestoreState(JPC_PhysicsSystem *in_physics_system,
+                               JPC_StateRecorder *in_recorder)
+{
+    return reinterpret_cast<JPH::PhysicsSystem *>(in_physics_system)->RestoreState(
+        *toStateRecorder(in_recorder));
+}
+//--------------------------------------------------------------------------------------------------
+JPC_API void
+JPC_CharacterVirtual_SaveState(const JPC_CharacterVirtual *in_character,
+                               JPC_StateRecorder *in_recorder)
+{
+    reinterpret_cast<const JPH::CharacterVirtual *>(in_character)->SaveState(*toStateRecorder(in_recorder));
+}
+//--------------------------------------------------------------------------------------------------
+JPC_API void
+JPC_CharacterVirtual_RestoreState(JPC_CharacterVirtual *in_character,
+                                  JPC_StateRecorder *in_recorder)
+{
+    reinterpret_cast<JPH::CharacterVirtual *>(in_character)->RestoreState(*toStateRecorder(in_recorder));
+}
 //--------------------------------------------------------------------------------------------------
 JPC_API JPC_Body **
 JPC_PhysicsSystem_GetBodiesUnsafe(JPC_PhysicsSystem *in_physics_system)
