@@ -2835,7 +2835,8 @@ JPC_Constraint_SetUserData(JPC_Constraint *in_shape, uint64_t in_user_data)
 JPC_API JPC_Body *
 JPC_BodyInterface_CreateBody(JPC_BodyInterface *in_iface, const JPC_BodyCreationSettings *in_settings)
 {
-    return toJpc(toJph(in_iface)->CreateBody(*toJph(in_settings)));
+    JPH::Body *body = toJph(in_iface)->CreateBody(*toJph(in_settings));
+    return body != nullptr ? toJpc(body) : nullptr;
 }
 //--------------------------------------------------------------------------------------------------
 JPC_API JPC_Body *
@@ -2843,7 +2844,8 @@ JPC_BodyInterface_CreateBodyWithID(JPC_BodyInterface *in_iface,
                                    JPC_BodyID in_body_id,
                                    const JPC_BodyCreationSettings *in_settings)
 {
-    return toJpc(toJph(in_iface)->CreateBodyWithID(toJph(in_body_id), *toJph(in_settings)));
+    JPH::Body *body = toJph(in_iface)->CreateBodyWithID(toJph(in_body_id), *toJph(in_settings));
+    return body != nullptr ? toJpc(body) : nullptr;
 }
 //--------------------------------------------------------------------------------------------------
 JPC_API void
