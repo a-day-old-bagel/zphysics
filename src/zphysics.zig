@@ -11,6 +11,9 @@ const c = @cImport({
 });
 
 pub const Real = c.JPC_Real;
+pub const uses_double_precision = options.use_double_precision;
+pub const cross_platform_determinism_enabled =
+    options.enable_cross_platform_determinism;
 comptime {
     assert(if (options.use_double_precision) Real == f64 else Real == f32);
 }
