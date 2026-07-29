@@ -56,6 +56,14 @@ pub const StateRecorder = opaque {
             return error.StateRecorderSizeMismatch;
     }
 
+    pub fn loadData(recorder: *StateRecorder, data: []const u8) !void {
+        if (data.len == 0 or
+            !c.JPC_StateRecorder_LoadData(@ptrCast(recorder), data.ptr, data.len))
+        {
+            return error.FailedToLoadStateRecorderData;
+        }
+    }
+
     pub fn isFailed(recorder: *const StateRecorder) bool {
         return c.JPC_StateRecorder_IsFailed(@ptrCast(recorder));
     }

@@ -100,6 +100,20 @@ JPC_StateRecorder_CopyData(const JPC_StateRecorder *in_recorder,
 }
 //--------------------------------------------------------------------------------------------------
 JPC_API bool
+JPC_StateRecorder_LoadData(JPC_StateRecorder *in_recorder,
+                           const void *in_data,
+                           size_t in_data_size)
+{
+    if (in_data == nullptr || in_data_size == 0)
+        return false;
+    JPH::StateRecorderImpl *recorder = toStateRecorder(in_recorder);
+    recorder->Clear();
+    recorder->WriteBytes(in_data, in_data_size);
+    recorder->Rewind();
+    return !recorder->IsFailed();
+}
+//--------------------------------------------------------------------------------------------------
+JPC_API bool
 JPC_StateRecorder_IsFailed(const JPC_StateRecorder *in_recorder)
 {
     return toStateRecorder(in_recorder)->IsFailed();

@@ -1376,6 +1376,11 @@ JPC_StateRecorder_CopyData(const JPC_StateRecorder *in_recorder,
                            size_t in_data_size);
 
 JPC_API bool
+JPC_StateRecorder_LoadData(JPC_StateRecorder *in_recorder,
+                           const void *in_data,
+                           size_t in_data_size);
+
+JPC_API bool
 JPC_StateRecorder_IsFailed(const JPC_StateRecorder *in_recorder);
 
 JPC_API void
