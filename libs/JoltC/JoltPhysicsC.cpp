@@ -2180,6 +2180,14 @@ JPC_MeshShapeSettings_Create(const void *in_vertices,
     }
 
     auto settings = new JPH::MeshShapeSettings(vertices, triangles);
+    // Removing a triangle can change the referenced-vertex bounds used by
+    // the collision codec. Recompute until every remaining triangle survives
+    // quantization with the final bounds. Each nonterminal pass removes work.
+    for (;;) {
+        const size_t count = settings->mIndexedTriangles.size();
+        settings->Sanitize();
+        if (settings->mIndexedTriangles.size() == count) break;
+    }
     settings->AddRef();
     return toJpc(settings);
 }
